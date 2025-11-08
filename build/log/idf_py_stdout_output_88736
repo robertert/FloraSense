@@ -1,0 +1,364 @@
+Command: /Users/robertjacak/.espressif/python_env/idf6.0_py3.13_env/bin/python /Users/robertjacak/esp/esp-idf/tools/idf_monitor.py -p /dev/cu.usbserial-120 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 /Users/robertjacak/esp/esp-idf/flora-sense/build/flora-sense.elf /Users/robertjacak/esp/esp-idf/flora-sense/build/bootloader/bootloader.elf -m '/Users/robertjacak/.espressif/python_env/idf6.0_py3.13_env/bin/python' '/Users/robertjacak/esp/esp-idf/tools/idf.py'
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0040,len:6376
+load:0x40078000,len:15900
+ho 0 tail 12 room 4
+load:0x40080400,len:3920
+entry 0x40080644
+[0;32mI (29) boot: ESP-IDF v6.0-dev-2980-gab149384e1 2nd stage bootloader[0m
+[0;32mI (29) boot: compile time Nov  2 2025 15:30:37[0m
+[0;32mI (29) boot: Multicore bootloader[0m
+[0;32mI (32) boot: chip revision: v3.1[0m
+[0;32mI (35) boot.esp32: SPI Speed      : 40MHz[0m
+[0;32mI (39) boot.esp32: SPI Mode       : DIO[0m
+[0;32mI (42) boot.esp32: SPI Flash Size : 2MB[0m
+[0;32mI (46) boot: Enabling RNG early entropy source...[0m
+[0;32mI (50) boot: Partition Table:[0m
+[0;32mI (53) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (59) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (66) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (72) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (79) boot: End of partition table[0m
+[0;32mI (82) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=1e858h (125016) map[0m
+[0;32mI (134) esp_image: segment 1: paddr=0002e880 vaddr=3ffb0000 size=01798h (  6040) load[0m
+[0;32mI (137) esp_image: segment 2: paddr=00030020 vaddr=400d0020 size=a1ad0h (662224) map[0m
+[0;32mI (374) esp_image: segment 3: paddr=000d1af8 vaddr=3ffb1798 size=029ach ( 10668) load[0m
+[0;32mI (378) esp_image: segment 4: paddr=000d44ac vaddr=40080000 size=15634h ( 87604) load[0m
+[0;32mI (414) esp_image: segment 5: paddr=000e9ae8 vaddr=50000000 size=00024h (    36) load[0m
+[0;32mI (425) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (425) boot: Disabling RNG early entropy source...[0m
+[0;32mI (436) cpu_start: Multicore app[0m
+[0;32mI (444) cpu_start: GPIO 3 and 1 are used as console UART I/O pins[0m
+[0;32mI (444) cpu_start: Pro cpu start user code[0m
+[0;32mI (444) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (446) app_init: Application information:[0m
+[0;32mI (450) app_init: Project name:     flora-sense[0m
+[0;32mI (454) app_init: App version:      v6.0-dev-2980-gab149384e1[0m
+[0;32mI (460) app_init: Compile time:     Nov  2 2025 15:30:32[0m
+[0;32mI (465) app_init: ELF file SHA256:  3d430fc92...[0m
+[0;32mI (469) app_init: ESP-IDF:          v6.0-dev-2980-gab149384e1[0m
+[0;32mI (475) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (478) efuse_init: Max chip rev:     v3.99 [0m
+[0;32mI (482) efuse_init: Chip rev:         v3.1[0m
+[0;32mI (486) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (493) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM[0m
+[0;32mI (498) heap_init: At 3FFB8AC0 len 00027540 (157 KiB): DRAM[0m
+[0;32mI (503) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+[0;32mI (508) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (514) heap_init: At 40095634 len 0000A9CC (42 KiB): IRAM[0m
+[0;33mW (521) spi_flash: Detected boya flash chip but using generic driver. For optimal functionality, enable `SPI_FLASH_SUPPORT_BOYA_CHIP` in menuconfig[0m
+[0;32mI (532) spi_flash: detected chip: generic[0m
+[0;32mI (536) spi_flash: flash io: dio[0m
+[0;33mW (539) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (552) main_task: Started on CPU0[0m
+[0;32mI (562) main_task: Calling app_main()[0m
+[0;32mI (592) wifi station: ESP_WIFI_MODE_STA[0m
+[0;32mI (612) wifi:wifi driver task: 3ffc0b9c, prio:23, stack:6656, core=0[0m
+[0;32mI (622) wifi:wifi firmware version: d651973[0m
+[0;32mI (622) wifi:wifi certification version: v7.0[0m
+[0;32mI (622) wifi:config NVS flash: enabled[0m
+[0;32mI (622) wifi:config nano formatting: disabled[0m
+[0;32mI (632) wifi:Init data frame dynamic rx buffer num: 32[0m
+[0;32mI (632) wifi:Init static rx mgmt buffer num: 5[0m
+[0;32mI (642) wifi:Init management short buffer num: 32[0m
+[0;32mI (642) wifi:Init dynamic tx buffer num: 32[0m
+[0;32mI (652) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (652) wifi:Init static rx buffer num: 10[0m
+[0;32mI (652) wifi:Init dynamic rx buffer num: 32[0m
+[0;32mI (662) wifi_init: rx ba win: 6[0m
+[0;32mI (662) wifi_init: accept mbox: 6[0m
+[0;32mI (662) wifi_init: tcpip mbox: 32[0m
+[0;32mI (672) wifi_init: udp mbox: 6[0m
+[0;32mI (672) wifi_init: tcp mbox: 6[0m
+[0;32mI (672) wifi_init: tcp tx win: 5760[0m
+[0;32mI (682) wifi_init: tcp rx win: 5760[0m
+[0;32mI (682) wifi_init: tcp mss: 1440[0m
+[0;32mI (682) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (692) wifi_init: WiFi RX IRAM OP enabled[0m
+[0;32mI (692) phy_init: phy_version 4861,b71b5ad,Aug  5 2025,11:16:06[0m
+[0;32mI (782) wifi:mode : sta (88:13:bf:69:83:d0)[0m
+[0;32mI (782) wifi:enable tsf[0m
+[0;32mI (792) wifi station: wifi_init_sta finished.[0m
+[0;32mI (802) wifi:new:<6,0>, old:<1,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (802) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (812) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (822) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (862) wifi:connected with iPhone Robert, aid = 1, channel 6, BW20, bssid = b6:38:e8:0f:63:99[0m
+[0;32mI (862) wifi:security: WPA2-PSK, phy: bgn, rssi: -53[0m
+[0;32mI (872) wifi:pm start, type: 1[0m
+
+[0;32mI (872) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (892) wifi:<ba-add>idx:0 (ifx:0, b6:38:e8:0f:63:99), tid:0, ssn:2, winSize:64[0m
+[0;32mI (942) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (1912) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (1912) wifi station: got ip:172.20.10.2[0m
+[0;32mI (1912) wifi station: connected to ap SSID:iPhone Robert password:SWER1234[0m
+[0;32mI (1922) main_task: Returned from app_main()[0m
+📥 Odpowiedź: <html>
+<head><title>502 Bad Gateway</title></head>
+<body>
+<center><h1>502 Bad Gateway</h1></center>
+</body>
+</html>
+
+[0;32mI (2422) wifi station: HTTP GET zakończony sukcesem, kod: 502[0m
+[0;32mI (2432) wifi station: Długość odpowiedzi: 502[0m
+[0;32mI (97572) wifi:bcn_timeout,ap_probe_send_start[0m
+[0;32mI (100072) wifi:ap_probe_send over, reset wifi status to disassoc[0m
+[0;32mI (100072) wifi:state: run -> init (0xc800)[0m
+[0;32mI (100082) wifi:pm stop, total sleep time: 76343914 us / 99206863 us[0m
+
+[0;32mI (100082) wifi:<ba-del>idx:0, tid:0[0m
+[0;32mI (100082) wifi:new:<6,0>, old:<6,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (100092) wifi station: retry to connect to the AP[0m
+[0;32mI (102512) wifi station: retry to connect to the AP[0m
+[0;32mI (104932) wifi station: retry to connect to the AP[0m
+[0;32mI (104942) wifi:new:<6,0>, old:<6,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (104942) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (104952) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (104962) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (105042) wifi:connected with iPhone Robert, aid = 1, channel 6, BW20, bssid = d2:b8:04:ad:99:bd[0m
+[0;32mI (105042) wifi:security: WPA2-PSK, phy: bgn, rssi: -51[0m
+[0;32mI (105042) wifi:pm start, type: 1[0m
+
+[0;32mI (105052) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (106562) wifi:<ba-add>idx:0 (ifx:0, d2:b8:04:ad:99:bd), tid:0, ssn:2, winSize:64[0m
+[0;32mI (107582) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (107582) wifi station: got ip:172.20.10.2[0m
+[0;32mI (1982) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (1982) wifi station: got ip:172.20.10.2[0m
+[0;32mI (1982) wifi station: connected to ap SSID:iPhone Robert password:SWER1234[0m
+[0;32mI (1992) main_task: Returned from app_main()[0m
+📥 Odpowiedź: <!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>httpbin.org</title>
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,700|Source+Code+Pro:300,600|Titillium+Web:400,600,700"
+        rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="/flasgger_static/swagger-ui.css">
+    <link rel="icon" type="image/png" href="/static/favicon.ico" sizes="64x64 32x32 16x16" />
+    <style>
+        html {
+            box-sizing: border-box;
+            overflow: 
+📥 Odpowiedź: -moz-scrollbars-vertical;
+            overflow-y: scroll;
+        }
+
+        *,
+        *:before,
+        *:after {
+            box-sizing: inherit;
+        }
+
+        body {
+            margin: 0;
+            background: #fafafa;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="https://github.com/requests/httpbin" class="github-corner" aria-label="View source on Github">
+        <svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; righ
+📥 Odpowiedź: t: 0;"
+            aria-hidden="true">
+            <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
+            <path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2"
+                fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path>
+            <path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C1
+📥 Odpowiedź: 36.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z"
+                fill="currentColor" class="o
+📥 Odpowiedź: cto-body"></path>
+        </svg>
+    </a>
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="position:absolute;width:0;height:0">
+        <defs>
+            <symbol viewBox="0 0 20 20" id="unlocked">
+                <path d="M15.8 8H14V5.6C14 2.703 12.665 1 10 1 7.334 1 6 2.703 6 5.6V6h2v-.801C8 3.754 8.797 3 10 3c1.203 0 2 .754 2 2.199V8H4c-.553 0-1 .646-1 1.199V17c0 .549.428 1.139.951 1.307l1.197.387C5.672 18.861 6.55 19 7.1 19h5.8c.549 0 1.428-.139 1.951-.307l1.
+📥 Odpowiedź: 196-.387c.524-.167.953-.757.953-1.306V9.199C17 8.646 16.352 8 15.8 8z"></path>
+            </symbol>
+
+            <symbol viewBox="0 0 20 20" id="locked">
+                <path d="M15.8 8H14V5.6C14 2.703 12.665 1 10 1 7.334 1 6 2.703 6 5.6V8H4c-.553 0-1 .646-1 1.199V17c0 .549.428 1.139.951 1.307l1.197.387C5.672 18.861 6.55 19 7.1 19h5.8c.549 0 1.428-.139 1.951-.307l1.196-.387c.524-.167.953-.757.953-1.306V9.199C17 8.646 16.352 8 15.8 8zM12 8H8V5.199C8 3.754 8.797 3 10 3c1.203 0 2 .754 2 2.199V8z"
+           
+📥 Odpowiedź:      />
+            </symbol>
+
+            <symbol viewBox="0 0 20 20" id="close">
+                <path d="M14.348 14.849c-.469.469-1.229.469-1.697 0L10 11.819l-2.651 3.029c-.469.469-1.229.469-1.697 0-.469-.469-.469-1.229 0-1.697l2.758-3.15-2.759-3.152c-.469-.469-.469-1.228 0-1.697.469-.469 1.228-.469 1.697 0L10 8.183l2.651-3.031c.469-.469 1.228-.469 1.697 0 .469.469.469 1.229 0 1.697l-2.758 3.152 2.758 3.15c.469.469.469 1.229 0 1.698z"
+                />
+            </symbol>
+
+            <symbol viewBox=
+📥 Odpowiedź: "0 0 20 20" id="large-arrow">
+                <path d="M13.25 10L6.109 2.58c-.268-.27-.268-.707 0-.979.268-.27.701-.27.969 0l7.83 7.908c.268.271.268.709 0 .979l-7.83 7.908c-.268.271-.701.27-.969 0-.268-.269-.268-.707 0-.979L13.25 10z"
+                />
+            </symbol>
+
+            <symbol viewBox="0 0 20 20" id="large-arrow-down">
+                <path d="M17.418 6.109c.272-.268.709-.268.979 0s.271.701 0 .969l-7.908 7.83c-.27.268-.707.268-.979 0l-7.908-7.83c-.27-.268-.27-.701 0-.969.271-.268.709-.268
+📥 Odpowiedź: .979 0L10 13.25l7.418-7.141z"
+                />
+            </symbol>
+
+
+            <symbol viewBox="0 0 24 24" id="jump-to">
+                <path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7z" />
+            </symbol>
+
+            <symbol viewBox="0 0 24 24" id="expand">
+                <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z" />
+            </symbol>
+
+        </defs>
+    </svg>
+
+
+    <div id="swagger-ui">
+        <div data-reactroot="" class="swagger-ui">
+            <di
+📥 Odpowiedź: v>
+                <div class="information-container wrapper">
+                    <section class="block col-12">
+                        <div class="info">
+                            <hgroup class="main">
+                                <h2 class="title">httpbin.org
+                                    <small>
+                                        <pre class="version">0.9.2</pre>
+                                    </small>
+                                </h2>
+                                <pre class=
+📥 Odpowiedź: "base-url">[ Base URL: httpbin.org/ ]</pre>
+                            </hgroup>
+                            <div class="description">
+                                <div class="markdown">
+                                    <p>A simple HTTP Request &amp; Response Service.
+                                        <br>
+                                        <br>
+                                        <b>Run locally: </b>
+                                        <code>$ docker run -p 80:80 kennethreitz/http
+📥 Odpowiedź: bin</code>
+                                    </p>
+                                </div>
+                            </div>
+                            <div>
+                                <div>
+                                    <a href="https://kennethreitz.org" target="_blank">the developer - Website</a>
+                                </div>
+                                <a href="mailto:me@kennethreitz.org">Send email to the developer</a>
+                            </div>
+                        
+📥 Odpowiedź: </div>
+                        <!-- ADDS THE LOADER SPINNER -->
+                        <div class="loading-container">
+                            <div class="loading"></div>
+                        </div>
+
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class='swagger-ui'>
+        <div class="wrapper">
+            <section class="clear">
+                <span style="float: right;">
+                    [Powered by
+                    <a target="
+📥 Odpowiedź: _blank" href="https://github.com/rochacbruno/flasgger">Flasgger</a>]
+                    <br>
+                </span>
+            </section>
+        </div>
+    </div>
+
+
+
+    <script src="/flasgger_static/swagger-ui-bundle.js"> </script>
+    <script src="/flasgger_static/swagger-ui-standalone-preset.js"> </script>
+    <script src='/flasgger_static/lib/jquery.min.js' type='text/javascript'></script>
+    <script>
+
+        window.onload = function () {
+            
+
+            fetch("/spec.json")
+             
+📥 Odpowiedź:    .then(function (response) {
+                    response.json()
+                        .then(function (json) {
+                            var current_protocol = window.location.protocol.slice(0, -1);
+                            if (json.schemes[0] != current_protocol) {
+                                // Switches scheme to the current in use
+                                var other_protocol = json.schemes[0];
+                                json.schemes[0] = current_protocol;
+                         
+📥 Odpowiedź:        json.schemes[1] = other_protocol;
+
+                            }
+                            json.host = window.location.host;  // sets the current host
+
+                            const ui = SwaggerUIBundle({
+                                spec: json,
+                                validatorUrl: null,
+                                dom_id: '#swagger-ui',
+                                deepLinking: true,
+                                jsonEditor: true,
+                                docExpansi
+📥 Odpowiedź: on: "none",
+                                apisSorter: "alpha",
+                                //operationsSorter: "alpha",
+                                presets: [
+                                    SwaggerUIBundle.presets.apis,
+                                    // yay ES6 modules ↘
+                                    Array.isArray(SwaggerUIStandalonePreset) ? SwaggerUIStandalonePreset : SwaggerUIStandalonePreset.default
+                                ],
+                                plugins: [
+📥 Odpowiedź: 
+                                    SwaggerUIBundle.plugins.DownloadUrl
+                                ],
+            
+            // layout: "StandaloneLayout"  // uncomment to enable the green top header
+        })
+
+        window.ui = ui
+
+        // uncomment to rename the top brand if layout is enabled
+        // $(".topbar-wrapper .link span").replaceWith("<span>httpbin</span>");
+        })
+    })
+}
+    </script>  <div class='swagger-ui'>
+    <div class="wrapper">
+        <section class="block col-12
+📥 Odpowiedź:  block-desktop col-12-desktop">
+            <div>
+
+                <h2>Other Utilities</h2>
+
+                <ul>
+                    <li>
+                        <a href="/forms/post">HTML form</a> that posts to /post /forms/post</li>
+                </ul>
+
+                <br />
+                <br />
+            </div>
+        </section>
+    </div>
+</div>
+</body>
+
+</html>
+[0;32mI (5692) wifi station: HTTP GET zakończony sukcesem, kod: 200[0m
+[0;32mI (5702) wifi station: Długość odpowiedzi: 200[0m

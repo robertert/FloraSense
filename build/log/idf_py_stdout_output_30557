@@ -1,0 +1,270 @@
+Command: /Users/robertjacak/.espressif/python_env/idf6.0_py3.13_env/bin/python /Users/robertjacak/esp/esp-idf/tools/idf_monitor.py -p /dev/cu.usbserial-10 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 /Users/robertjacak/esp/esp-idf/flora-sense/build/flora-sense.elf /Users/robertjacak/esp/esp-idf/flora-sense/build/bootloader/bootloader.elf -m '/Users/robertjacak/.espressif/python_env/idf6.0_py3.13_env/bin/python' '/Users/robertjacak/esp/esp-idf/tools/idf.py'
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0040,len:6376
+load:0x40078000,len:15900
+ho 0 tail 12 room 4
+load:0x40080400,len:3920
+entry 0x40080644
+[0;32mI (29) boot: ESP-IDF v6.0-dev-2980-gab149384e1 2nd stage bootloader[0m
+[0;32mI (29) boot: compile time Nov  2 2025 15:30:37[0m
+[0;32mI (29) boot: Multicore bootloader[0m
+[0;32mI (32) boot: chip revision: v3.1[0m
+[0;32mI (35) boot.esp32: SPI Speed      : 40MHz[0m
+[0;32mI (39) boot.esp32: SPI Mode       : DIO[0m
+[0;32mI (42) boot.esp32: SPI Flash Size : 2MB[0m
+[0;32mI (46) boot: Enabling RNG early entropy source...[0m
+[0;32mI (50) boot: Partition Table:[0m
+[0;32mI (53) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (59) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (66) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (72) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (79) boot: End of partition table[0m
+[0;32mI (82) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=1e778h (124792) map[0m
+[0;32mI (134) esp_image: segment 1: paddr=0002e7a0 vaddr=3ffb0000 size=01878h (  6264) load[0m
+[0;32mI (137) esp_image: segment 2: paddr=00030020 vaddr=400d0020 size=a1800h (661504) map[0m
+[0;32mI (374) esp_image: segment 3: paddr=000d1828 vaddr=3ffb1878 size=028cch ( 10444) load[0m
+[0;32mI (378) esp_image: segment 4: paddr=000d40fc vaddr=40080000 size=15634h ( 87604) load[0m
+[0;32mI (414) esp_image: segment 5: paddr=000e9738 vaddr=50000000 size=00024h (    36) load[0m
+[0;32mI (425) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (425) boot: Disabling RNG early entropy source...[0m
+[0;32mI (435) cpu_start: Multicore app[0m
+[0;32mI (444) cpu_start: GPIO 3 and 1 are used as console UART I/O pins[0m
+[0;32mI (444) cpu_start: Pro cpu start user code[0m
+[0;32mI (444) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (446) app_init: Application information:[0m
+[0;32mI (449) app_init: Project name:     flora-sense[0m
+[0;32mI (454) app_init: App version:      v6.0-dev-2980-gab149384e1[0m
+[0;32mI (459) app_init: Compile time:     Nov  2 2025 15:30:32[0m
+[0;32mI (464) app_init: ELF file SHA256:  10d27c50e...[0m
+[0;32mI (469) app_init: ESP-IDF:          v6.0-dev-2980-gab149384e1[0m
+[0;32mI (474) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (478) efuse_init: Max chip rev:     v3.99 [0m
+[0;32mI (482) efuse_init: Chip rev:         v3.1[0m
+[0;32mI (486) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (492) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM[0m
+[0;32mI (497) heap_init: At 3FFB8AC0 len 00027540 (157 KiB): DRAM[0m
+[0;32mI (502) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+[0;32mI (508) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (513) heap_init: At 40095634 len 0000A9CC (42 KiB): IRAM[0m
+[0;33mW (520) spi_flash: Detected boya flash chip but using generic driver. For optimal functionality, enable `SPI_FLASH_SUPPORT_BOYA_CHIP` in menuconfig[0m
+[0;32mI (532) spi_flash: detected chip: generic[0m
+[0;32mI (535) spi_flash: flash io: dio[0m
+[0;33mW (538) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (552) main_task: Started on CPU0[0m
+[0;32mI (562) main_task: Calling app_main()[0m
+[0;32mI (592) wifi station: ESP_WIFI_MODE_STA[0m
+[0;32mI (612) wifi:wifi driver task: 3ffc0b9c, prio:23, stack:6656, core=0[0m
+[0;32mI (622) wifi:wifi firmware version: d651973[0m
+[0;32mI (622) wifi:wifi certification version: v7.0[0m
+[0;32mI (622) wifi:config NVS flash: enabled[0m
+[0;32mI (622) wifi:config nano formatting: disabled[0m
+[0;32mI (632) wifi:Init data frame dynamic rx buffer num: 32[0m
+[0;32mI (632) wifi:Init static rx mgmt buffer num: 5[0m
+[0;32mI (642) wifi:Init management short buffer num: 32[0m
+[0;32mI (642) wifi:Init dynamic tx buffer num: 32[0m
+[0;32mI (652) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (652) wifi:Init static rx buffer num: 10[0m
+[0;32mI (652) wifi:Init dynamic rx buffer num: 32[0m
+[0;32mI (662) wifi_init: rx ba win: 6[0m
+[0;32mI (662) wifi_init: accept mbox: 6[0m
+[0;32mI (662) wifi_init: tcpip mbox: 32[0m
+[0;32mI (672) wifi_init: udp mbox: 6[0m
+[0;32mI (672) wifi_init: tcp mbox: 6[0m
+[0;32mI (672) wifi_init: tcp tx win: 5760[0m
+[0;32mI (672) wifi_init: tcp rx win: 5760[0m
+[0;32mI (682) wifi_init: tcp mss: 1440[0m
+[0;32mI (682) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (682) wifi_init: WiFi RX IRAM OP enabled[0m
+[0;32mI (692) phy_init: phy_version 4861,b71b5ad,Aug  5 2025,11:16:06[0m
+[0;32mI (782) wifi:mode : sta (88:13:bf:69:83:d0)[0m
+[0;32mI (782) wifi:enable tsf[0m
+[0;32mI (782) wifi station: wifi_init_sta finished.[0m
+[0;32mI (802) wifi:new:<6,0>, old:<1,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (802) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (812) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (822) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (10822) wifi:state: run -> init (0xcc00)[0m
+[0;32mI (10832) wifi:new:<6,0>, old:<6g:0x0[0m
+[0;32mI (10832) wifi station: rto connect to the AP[0m
+[0;32mI (13252) wifi station: retry to connect to the AP[0m
+[0;32mI (13262) wifi:new:<6,0>, old:<6,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (13262) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (13272) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (13292) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (23292) wifi:state: run -> init (0xcc00)[0m
+[0;32mI (23302) wifi:new:<6,0>, old:<6of:1, snd_ch_cfg:0x0[0m
+[0;32mI (23302) try to connect to the AP[0m
+[0;32mI (25722) wifi station: retry to connect to the AP[0m
+[0;32mI (25752) wifi:new:<6,0>, old:<6,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (25752) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (25802) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (25912) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (25952) wifi:connected with iPhone Robert, aid = 1, channel 6, BW20, bssid = 92:a8:f7:f1:ca:15[0m
+[0;32mI (25952) wifi:security: WPA2-PSK, phy: bgn, rssi: -43[0m
+[0;32mI (25952) wifi:pm start, type: 1[0m
+
+[0;32mI (25952) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (25972) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (26482) wifi:<ba-add>idx:0 (ifx:0, 92:a8:f7:f1:ca:15), tid:0, ssn:2, winSize:64[0m
+[0;32mI (27502) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (27502) wifi station: got ip:172.20.10.2[0m
+[0;32mI (27502) wifi station: connected to ap SSID:iPhone Robert password:SWER1234[0m
+[0;32mI (27512) main_task: Returned from app_main()[0m
+📥 Odpowiedź: <!doctype html><html lang="en"><head><title>Example Domain</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{background:#eee;width:60vw;margin:15vh auto;font-family:system-ui,sans-serif}h1{font-size:1.5em}div{opac
+📥 Odpowiedź: ity:0.8}a:link,a:visited{color:#348}</style><body><div><h1>Example Domain</h1><p>This domain is for use in documentation examples without needing permission. Avoid use in operations.<p><a href="https://iana.org/domains/example">Learn more</a></div></body></html>
+
+[0;32mI (28372) wifi station: HTTP GET zakończony sukcesem, kod: 200[0m
+[0;32mI (28382) wifi station: Długość odpowiedzi: 200[0m
+[0;32mI (1002) wifi:connected with iPhone Robert, aid = 1, channel 6, BW20, bssid = 92:a8:f7:f1:ca:15[0m
+[0;32mI (1002) wifi:security: WPA2-PSK, phy: bgn, rssi: -47[0m
+[0;32mI (1012) wifi:pm start, type: 1[0m
+
+[0;32mI (1012) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (1032) wifi:<ba-add>idx:0 (ifx:0, 92:a8:f7:f1:ca:15), tid:0, ssn:2, winSize:64[0m
+[0;32mI (1142) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (2062) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (2062) wifi station: got ip:172.20.10.2[0m
+[0;32mI (2062) wifi station: connected to ap SSID:iPhone Robert password:SWER1234[0m
+[0;32mI (2072) main_task: Returned from app_main()[0m
+📥 Odpowiedź: <!doctype html><html lang="en"><head><title>Example Domain</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{background:#eee;width:60vw;margin:15vh auto;font-family:system-ui,sans-serif}h1{font-size:1.5em}div{opac
+📥 Odpowiedź: ity:0.8}a:link,a:visited{color:#348}</style><body><div><h1>Example Domain</h1><p>This domain is for use in documentation examples without needing permission. Avoid use in operations.<p><a href="https://iana.org/domains/example">Learn more</a></div></body></html>
+
+[0;32mI (2832) wifi station: HTTP GET zakończony sukcesem, kod: 200[0m
+[0;32mI (2832) wifi station: Długość odpowiedzi: 200[0m
+it: tcp mbox: 6
+[0;32mI (672) wifi_init: tcp tx win: 5760[0m
+[0;32mI (672) wifi_init: tcp rx win: 5760[0m
+[0;32mI (682) wifi_init: tcp mss: 1440[0m
+[0;32mI (682) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (682) wifi_init: WiFi RX IRAM OP enabled[0m
+[0;32mI (692) phy_init: phy_version 4861,b71b5ad,Aug  5 2025,11:16:06[0m
+[0;32mI (782) wifi:mode : sta (88:13:bf:69:83:d0)[0m
+[0;32mI (782) wifi:enable tsf[0m
+[0;32mI (782) wifi station: wifi_init_sta finished.[0m
+[0;32mI (802) wifi:new:<6,0>, old:<1,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (802) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (812) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (822) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (882) wifi:connected with iPhone Robert, aid = 1, channel 6, BW20, bssid = 92:a8:f7:f1:ca:15[0m
+[0;32mI (882) wifi:security: WPA2-PSK, phy: bgn, rssi: -50[0m
+[0;32mI (892) wifi:pm start, type: 1[0m
+
+[0;32mI (892) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (912) wifi:<ba-add>idx:0 (ifx:0, 92:a8:f7:f1:ca:15), tid:0, ssn:2, winSize:64[0m
+[0;32mI (932) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (1962) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (1962) wifi station: got ip:172.20.10.2[0m
+[0;32mI (1962) wifi station: connected to ap SSID:iPhone Robert password:SWER1234[0m
+[0;32mI (1972) main_task: Returned from app_main()[0m
+📥 Odpowiedź: <!doctype html><html lang="en"><head><title>Example Domain</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{background:#eee;width:60vw;margin:15vh auto;font-family:system-ui,sans-serif}h1{font-size:1.5em}div{opac
+📥 Odpowiedź: ity:0.8}a:link,a:visited{color:#348}</style><body><div><h1>Example Domain</h1><p>This domain is for use in documentation examples without needing permission. Avoid use in operations.<p><a href="https://iana.org/domains/example">Learn more</a></div></body></html>
+
+[0;32mI (2612) wifi station: HTTP GET zakończony sukcesem, kod: 200[0m
+[0;32mI (2622) wifi station: Długość odpowiedzi: 200[0m
+er num: 32
+[0;32mI (652) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (652) wifi:Init static rx buffer num: 10[0m
+[0;32mI (652) wifi:Init dynamic rx buffer num: 32[0m
+[0;32mI (662) wifi_init: rx ba win: 6[0m
+[0;32mI (662) wifi_init: accept mbox: 6[0m
+[0;32mI (662) wifi_init: tcpip mbox: 32[0m
+[0;32mI (672) wifi_init: udp mbox: 6[0m
+[0;32mI (672) wifi_init: tcp mbox: 6[0m
+[0;32mI (672) wifi_init: tcp tx win: 5760[0m
+[0;32mI (672) wifi_init: tcp rx win: 5760[0m
+[0;32mI (682) wifi_init: tcp mss: 1440[0m
+[0;32mI (682) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (682) wifi_init: WiFi RX IRAM OP enabled[0m
+[0;32mI (692) phy_init: phy_version 4861,b71b5ad,Aug  5 2025,11:16:06[0m
+[0;32mI (782) wifi:mode : sta (88:13:bf:69:83:d0)[0m
+[0;32mI (782) wifi:enable tsf[0m
+[0;32mI (782) wifi station: wifi_init_sta finished.[0m
+[0;32mI (3212) wifi station: retry to connect to the AP[0m
+[0;32mI (5622) wifi station: retry to connect to the AP[0m
+[0;32mI (8042) wifi station: retry to connect to the AP[0m
+[0;32mI (8052) wifi:new:<6,0>, old:<1,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (8052) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (8062) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (8072) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (8122) wifi:connected with iPhone Robert, aid = 1, channel 6, BW20, bssid = 3a:da:bd:e0:e6:4e[0m
+[0;32mI (8132) wifi:security: WPA2-PSK, phy: bgn, rssi: -47[0m
+[0;32mI (8132) wifi:pm start, type: 1[0m
+
+[0;32mI (8132) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (8182) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (8652) wifi:<ba-add>idx:0 (ifx:0, 3a:da:bd:e0:e6:4e), tid:0, ssn:2, winSize:64[0m
+[0;32mI (9662) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (9662) wifi station: got ip:172.20.10.2[0m
+[0;32mI (9662) wifi station: connected to ap SSID:iPhone Robert password:SWER1234[0m
+[0;32mI (9672) main_task: Returned from app_main()[0m
+📥 Odpowiedź: <!doctype html><html lang="en"><head><title>Example Domain</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{background:#eee;width:60vw;margin:15vh auto;font-family:system-ui,sans-serif}h1{font-size:1.5em}div{opac
+📥 Odpowiedź: ity:0.8}a:link,a:visited{color:#348}</style><body><div><h1>Example Domain</h1><p>This domain is for use in documentation examples without needing permission. Avoid use in operations.<p><a href="https://iana.org/domains/example">Learn more</a></div></body></html>
+
+[0;32mI (10172) wifi station: HTTP GET zakończony sukcesem, kod: 200[0m
+[0;32mI (10182) wifi station: Długość odpowiedzi: 200[0m
+[0;32mI (18992) wifi:bcn_timeout,ap_probe_send_start[0m
+[0;32mI (21502) wifi:ap_probe_send over, reset wifi status to disassoc[0m
+[0;32mI (21502) wifi:state: run -> init (0xc800)[0m
+[0;32mI (21512) wifi:pm stop, total sleep time: 3501098 us / 13375761 us[0m
+
+[0;32mI (21512) wifi:<ba-del>idx:0, tid:0[0m
+[0;32mI (21512) wifi:new:<6,0>, old:<6,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (21522) wifi station: retry to connect to the AP[0m
+[0;32mI (23942) wifi station: retry to connect to the AP[0m
+[0;32mI (26352) wifi station: retry to connect to the AP[0m
+[0;32mI (28772) wifi station: retry to connect to the AP[0m
+[0;32mI (31192) wifi station: retry to connect to the AP[0m
+[0;32mI (31202) wifi:new:<6,0>, old:<6,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (31202) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (31222) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (31232) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (31272) wifi:connected with iPhone Robert, aid = 1, channel 6, BW20, bssid = b2:b0:e0:f8:1e:d0[0m
+[0;32mI (31272) wifi:security: WPA2-PSK, phy: bgn, rssi: -22[0m
+[0;32mI (31282) wifi:pm start, type: 1[0m
+
+[0;32mI (31322) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (31792) wifi:<ba-add>idx:0 (ifx:0, b2:b0:e0:f8:1e:d0), tid:0, ssn:2, winSize:64[0m
+[0;32mI (32872) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (32872) wifi station: got ip:172.20.10.2[0m
+[0;32mI (972) wifi:connected with iPhone Robert, aid = 1, channel 6, BW20, bssid = b2:b0:e0:f8:1e:d0[0m
+[0;32mI (972) wifi:security: WPA2-PSK, phy: bgn, rssi: -49[0m
+[0;32mI (982) wifi:pm start, type: 1[0m
+
+[0;32mI (982) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (1012) wifi:<ba-add>idx:0 (ifx:0, b2:b0:e0:f8:1e:d0), tid:0, ssn:2, winSize:64[0m
+[0;32mI (1042) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (2032) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (2032) wifi station: got ip:172.20.10.2[0m
+[0;32mI (2032) wifi station: connected to ap SSID:iPhone Robert password:SWER1234[0m
+[0;32mI (2042) main_task: Returned from app_main()[0m
+📥 Odpowiedź: <!doctype html><html lang="en"><head><title>Example Domain</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{background:#eee;width:60vw;margin:15vh auto;font-family:system-ui,sans-serif}h1{font-size:1.5em}div{opac
+📥 Odpowiedź: ity:0.8}a:link,a:visited{color:#348}</style><body><div><h1>Example Domain</h1><p>This domain is for use in documentation examples without needing permission. Avoid use in operations.<p><a href="https://iana.org/domains/example">Learn more</a></div></body></html>
+
+[0;32mI (4992) wifi station: HTTP GET zakończony sukcesem, kod: 200[0m
+[0;32mI (4992) wifi station: Długość odpowiedzi: 200[0m
+[0;32mI (14322) wifi:bcn_timeout,ap_probe_send_start[0m
+[0;32mI (16822) wifi:ap_probe_send over, reset wifi status to disassoc[0m
+[0;32mI (16822) wifi:state: run -> init (0xc800)[0m
+[0;32mI (16832) wifi:pm stop, total sleep time: 4959533 us / 15849349 us[0m
+
+[0;32mI (16832) wifi:<ba-del>idx:0, tid:0[0m
+[0;32mI (16832) wifi:new:<6,0>, old:<6,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (16842) wifi station: retry to connect to the AP[0m
+[0;32mI (19262) wifi station: retry to connect to the AP[0m
+[0;32mI (19272) wifi:new:<6,0>, old:<6,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (19272) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (19292) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (19302) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (19352) wifi:connected with iPhone Robert, aid = 1, channel 6, BW20, bssid = e6:2b:32:3a:9c:5d[0m
+[0;32mI (19352) wifi:security: WPA2-PSK, phy: bgn, rssi: -44[0m
+[0;32mI (19362) wifi:pm start, type: 1[0m
+
+[0;32mI (19382) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (19872) wifi:<ba-add>idx:0 (ifx:0, e6:2b:32:3a:9c:5d), tid:0, ssn:2, winSize:64[0m
+[0;32mI (20892) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (20892) wifi station: got ip:172.20.10.2[0m

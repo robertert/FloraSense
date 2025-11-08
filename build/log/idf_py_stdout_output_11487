@@ -1,0 +1,139 @@
+Command: /Users/robertjacak/.espressif/python_env/idf6.0_py3.13_env/bin/python /Users/robertjacak/esp/esp-idf/tools/idf_monitor.py -p /dev/cu.usbserial-120 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 /Users/robertjacak/esp/esp-idf/flora-sense/build/flora-sense.elf /Users/robertjacak/esp/esp-idf/flora-sense/build/bootloader/bootloader.elf -m '/Users/robertjacak/.espressif/python_env/idf6.0_py3.13_env/bin/python' '/Users/robertjacak/esp/esp-idf/tools/idf.py'
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0040,len:6376
+load:0x40078000,len:15900
+ho 0 tail 12 room 4
+load:0x40080400,len:3920
+entry 0x40080644
+[0;32mI (29) boot: ESP-IDF v6.0-dev-2980-gab149384e1 2nd stage bootloader[0m
+[0;32mI (29) boot: compile time Nov  2 2025 15:30:37[0m
+[0;32mI (29) boot: Multicore bootloader[0m
+[0;32mI (32) boot: chip revision: v3.1[0m
+[0;32mI (35) boot.esp32: SPI Speed      : 40MHz[0m
+[0;32mI (39) boot.esp32: SPI Mode       : DIO[0m
+[0;32mI (42) boot.esp32: SPI Flash Size : 2MB[0m
+[0;32mI (46) boot: Enabling RNG early entropy source...[0m
+[0;32mI (50) boot: Partition Table:[0m
+[0;32mI (53) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (59) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (66) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (72) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (79) boot: End of partition table[0m
+[0;32mI (82) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=19080h (102528) map[0m
+[0;32mI (126) esp_image: segment 1: paddr=000290a8 vaddr=3ffb0000 size=04124h ( 16676) load[0m
+[0;32mI (133) esp_image: segment 2: paddr=0002d1d4 vaddr=40080000 size=02e44h ( 11844) load[0m
+[0;32mI (138) esp_image: segment 3: paddr=00030020 vaddr=400d0020 size=85948h (547144) map[0m
+[0;32mI (333) esp_image: segment 4: paddr=000b5970 vaddr=40082e44 size=12790h ( 75664) load[0m
+[0;32mI (364) esp_image: segment 5: paddr=000c8108 vaddr=50000000 size=00024h (    36) load[0m
+[0;32mI (375) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (375) boot: Disabling RNG early entropy source...[0m
+[0;32mI (386) cpu_start: Multicore app[0m
+[0;32mI (394) cpu_start: GPIO 3 and 1 are used as console UART I/O pins[0m
+[0;32mI (394) cpu_start: Pro cpu start user code[0m
+[0;32mI (394) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (396) app_init: Application information:[0m
+[0;32mI (400) app_init: Project name:     flora-sense[0m
+[0;32mI (404) app_init: App version:      v6.0-dev-2980-gab149384e1[0m
+[0;32mI (410) app_init: Compile time:     Nov  2 2025 15:30:32[0m
+[0;32mI (415) app_init: ELF file SHA256:  ce13825ed...[0m
+[0;32mI (419) app_init: ESP-IDF:          v6.0-dev-2980-gab149384e1[0m
+[0;32mI (424) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (428) efuse_init: Max chip rev:     v3.99 [0m
+[0;32mI (432) efuse_init: Chip rev:         v3.1[0m
+[0;32mI (436) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (443) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM[0m
+[0;32mI (448) heap_init: At 3FFB8490 len 00027B70 (158 KiB): DRAM[0m
+[0;32mI (453) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+[0;32mI (458) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (464) heap_init: At 400955D4 len 0000AA2C (42 KiB): IRAM[0m
+[0;33mW (471) spi_flash: Detected boya flash chip but using generic driver. For optimal functionality, enable `SPI_FLASH_SUPPORT_BOYA_CHIP` in menuconfig[0m
+[0;32mI (482) spi_flash: detected chip: generic[0m
+[0;32mI (486) spi_flash: flash io: dio[0m
+[0;33mW (488) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (502) main_task: Started on CPU0[0m
+[0;32mI (512) main_task: Calling app_main()[0m
+[0;32mI (542) wifi station: ESP_WIFI_MODE_STA[0m
+[0;32mI (562) wifi:wifi driver task: 3ffc056c, prio:23, stack:6656, core=0[0m
+[0;32mI (572) wifi:wifi firmware version: d651973[0m
+[0;32mI (572) wifi:wifi certification version: v7.0[0m
+[0;32mI (582) wifi:config NVS flash: enabled[0m
+[0;32mI (582) wifi:config nano formatting: disabled[0m
+[0;32mI (582) wifi:Init data frame dynamic rx buffer num: 32[0m
+[0;32mI (582) wifi:Init static rx mgmt buffer num: 5[0m
+[0;32mI (592) wifi:Init management short buffer num: 32[0m
+[0;32mI (592) wifi:Init dynamic tx buffer num: 32[0m
+[0;32mI (602) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (602) wifi:Init static rx buffer num: 10[0m
+[0;32mI (602) wifi:Init dynamic rx buffer num: 32[0m
+[0;32mI (612) wifi_init: rx ba win: 6[0m
+[0;32mI (612) wifi_init: accept mbox: 6[0m
+[0;32mI (612) wifi_init: tcpip mbox: 32[0m
+[0;32mI (622) wifi_init: udp mbox: 6[0m
+[0;32mI (622) wifi_init: tcp mbox: 6[0m
+[0;32mI (622) wifi_init: tcp tx win: 5760[0m
+[0;32mI (632) wifi_init: tcp rx win: 5760[0m
+[0;32mI (632) wifi_init: tcp mss: 1440[0m
+[0;32mI (632) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (642) wifi_init: WiFi RX IRAM OP enabled[0m
+[0;32mI (642) phy_init: phy_version 4861,b71b5ad,Aug  5 2025,11:16:06[0m
+[0;32mI (732) wifi:mode : sta (88:13:bf:69:83:d0)[0m
+[0;32mI (732) wifi:enable tsf[0m
+[0;32mI (732) wifi station: wifi_init_sta finished.[0m
+[0;32mI (3162) wifi station: retry to connect to the AP[0m
+[0;32mI (3162) wifi station: connect to the AP fail[0m
+[0;32mI (5572) wifi station: retry to connect to the AP[0m
+[0;32mI (5572) wifi station: connect to the AP fail[0m
+[0;32mI (7992) wifi station: retry to connect to the AP[0m
+[0;32mI (7992) wifi station: connect to the AP fail[0m
+[0;32mI (8002) wifi:new:<6,0>, old:<1,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (8002) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (8022) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (8032) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (8062) wifi:connected with iPhone Robert, aid = 1, channel 6, BW20, bssid = 9e:05:15:d7:19:95[0m
+[0;32mI (8062) wifi:security: WPA2-PSK, phy: bgn, rssi: -46[0m
+[0;32mI (8072) wifi:pm start, type: 1[0m
+
+[0;32mI (8072) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (8122) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (8592) wifi:<ba-add>idx:0 (ifx:0, 9e:05:15:d7:19:95), tid:0, ssn:2, winSize:64[0m
+[0;32mI (9602) esp_netif_handlers: sta ip: 172.20.10.2, mask: 255.255.255.240, gw: 172.20.10.1[0m
+[0;32mI (9602) wifi station: got ip:172.20.10.2[0m
+[0;32mI (9602) wifi station: connected to ap SSID:iPhone Robert password:SWER1234[0m
+[0;32mI (19602) wifi station: WiFi is connected[0m
+[0;32mI (29602) wifi station: WiFi is connected[0m
+[0;32mI (34192) wifi:bcn_timeout,ap_probe_send_start[0m
+[0;32mI (36692) wifi:ap_probe_send over, reset wifi status to disassoc[0m
+[0;32mI (36692) wifi:state: run -> init (0xc800)[0m
+[0;32mI (36702) wifi:pm stop, total sleep time: 16793610 us / 28627267 us[0m
+
+[0;32mI (36702) wifi:<ba-del>idx:0, tid:0[0m
+[0;32mI (36702) wifi:new:<6,0>, old:<6,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (36712) wifi station: retry to connect to the AP[0m
+[0;32mI (36712) wifi station: connect to the AP fail[0m
+[0;32mI (39132) wifi station: retry to connect to the AP[0m
+[0;32mI (39132) wifi station: connect to the AP fail[0m
+[0;32mI (39602) wifi station: WiFi is connected[0m
+[0;32mI (41542) wifi station: retry to connect to the AP[0m
+[0;32mI (41542) wifi station: connect to the AP fail[0m
+[0;32mI (43962) wifi station: retry to connect to the AP[0m
+[0;32mI (43962) wifi station: connect to the AP fail[0m
+[0;32mI (46382) wifi station: retry to connect to the AP[0m
+[0;32mI (46382) wifi station: connect to the AP fail[0m
+[0;32mI (48792) wifi station: connect to the AP fail[0m
+[0;32mI (49602) wifi station: WiFi is connected[0m
+[0;32mI (59602) wifi station: WiFi is connected[0m
+[0;32mI (69602) wifi station: WiFi is connected[0m
+[0;32mI (79602) wifi station: WiFi is connected[0m
+[0;32mI (89602) wifi station: WiFi is connected[0m
+[0;32mI (99602) wifi station: WiFi is connected[0m
+[0;32mI (109602) wifi station: WiFi is connected[0m
+[0;32mI (119602) wifi station: WiFi is connected[0m
+[0;32mI (129602) wifi station: WiFi is connected[0m
+[0;32mI (139602) wifi station: WiFi is connected[0m
+[0;32mI (149602) wifi station: WiFi is connected[0m
+[0;32mI (159602) wifi station: WiFi is connected[0m
