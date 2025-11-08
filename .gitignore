@@ -1,0 +1,29 @@
+# Folder build – wszystko, co generuje CMake/Ninja
+/build/
+
+# Pliki tymczasowe CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Pliki binarne i ELF
+*.elf
+*.bin
+*.map
+*.out
+
+# Cache ESP-IDF
+.sdkconfig
+sdkconfig.old
+idf.log
+*.log
+
+# Virtual environment Python ESP-IDF
+/.espressif/
+
+# MacOS
+.DS_Store
+
+# VS Code
+.vscode/
