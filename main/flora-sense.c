@@ -19,6 +19,7 @@
 
 #include "config.h"
 #include "wifi.h"
+#include "itag_client.h"
 #include "http_client.h"
 
 void nvs_init(void)
@@ -36,6 +37,7 @@ void app_main(void)
 {
     nvs_init();
     wifi_init();
+    // init_ble();
     // Zwiększony stack dla http_get_task - potrzebny dla operacji sieciowych
     xTaskCreate(&http_get_task_raw, "http_get_task_raw", 8192, NULL, 5, NULL);
 

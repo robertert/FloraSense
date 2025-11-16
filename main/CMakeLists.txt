@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "flora-sense.c"
         "wifi.c"
+        "itag_client.c"
         "http_client.c"
         "motor_controller.c"
         "sensors/sensor_light.c"
