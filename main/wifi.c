@@ -31,7 +31,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
     switch (evt->event_id) {
         case HTTP_EVENT_ON_DATA:
-            printf("📥 Odpowiedź: %.*s\n", evt->data_len, (char*)evt->data);
+            printf("Odpowiedź: %.*s\n", evt->data_len, (char*)evt->data);
             break;
         default:
             break;
@@ -189,14 +189,6 @@ void http_get_task(void *pvParameters)
 
 void wifi_init(void)
 {
-    //Initialize NVS
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
     if (CONFIG_LOG_MAXIMUM_LEVEL > CONFIG_LOG_DEFAULT_LEVEL) {
         esp_log_level_set("wifi", CONFIG_LOG_MAXIMUM_LEVEL);
     }
