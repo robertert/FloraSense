@@ -7,7 +7,6 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
-#include "esp_http_client.h"
 #include "esp_netif.h"
 #include "config.h"
 
@@ -24,20 +23,19 @@ static const char *TAG = "wifi station";
 
 static int s_retry_num = 0;
 
-bool wifi_connected = false;
-
-
-esp_err_t _http_event_handler(esp_http_client_event_t *evt)
+/**
+ * @brief Sprawdza czy WiFi jest połączone (thread-safe)
+ * @return true jeśli połączone, false w przeciwnym razie
+ */
+bool wifi_is_connected(void)
 {
-    switch (evt->event_id) {
-        case HTTP_EVENT_ON_DATA:
-            printf("Odpowiedź: %.*s\n", evt->data_len, (char*)evt->data);
-            break;
-        default:
-            break;
+    if (s_wifi_event_group == NULL) {
+        return false;
     }
-    return ESP_OK;
+    EventBits_t bits = xEventGroupGetBits(s_wifi_event_group);
+    return (bits & WIFI_CONNECTED_BIT) != 0;
 }
+
 
 static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
@@ -45,15 +43,24 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        wifi_event_sta_disconnected_t* disconnected = (wifi_event_sta_disconnected_t*) event_data;
         /* Clear the connected bit immediately on disconnect so status checks
          * reflect that we're no longer connected. */
         xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-        wifi_connected = false;
+
+        // Najczęstsze kody błędów: 200=BEACON_TIMEOUT, 201=NO_AP_FOUND, 
+        // 202=AUTH_FAIL, 203=ASSOC_FAIL, 204=HANDSHAKE_TIMEOUT, 205=CONNECTION_FAIL
+        ESP_LOGW(TAG, "Rozłączono z AP. Powód: %d (SSID: %.*s)", 
+                 disconnected->reason,
+                 disconnected->ssid_len,
+                 disconnected->ssid);
 
         if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
-            esp_wifi_connect();
             s_retry_num++;
-            ESP_LOGI(TAG, "retry to connect to the AP");
+            ESP_LOGI(TAG, "retry to connect to the AP (próba %d/%d)", 
+                     s_retry_num, EXAMPLE_ESP_MAXIMUM_RETRY);
+            // Opóźnienie przed ponowną próbą - ESP-IDF automatycznie dodaje opóźnienie
+            esp_wifi_connect();
         } else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
             ESP_LOGI(TAG, "connect to the AP fail: max retries reached");
@@ -61,6 +68,13 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        
+        // Pobierz informacje o sile sygnału
+        wifi_ap_record_t ap_info;
+        if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
+            ESP_LOGI(TAG, "Połączono z AP: %s, RSSI: %d dBm", ap_info.ssid, ap_info.rssi);
+        }
+        
         s_retry_num = 0;
         /* Clear any previous failure bit and mark connected. */
         xEventGroupClearBits(s_wifi_event_group, WIFI_FAIL_BIT);
@@ -119,11 +133,9 @@ void wifi_init_sta(void)
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
                  EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
-        wifi_connected = true;
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
                  EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
-        wifi_connected = false;
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
@@ -138,11 +150,7 @@ void flash_led(void)
 
 void check_wifi_connection(void)
 {
-    EventBits_t bits = xEventGroupGetBits(s_wifi_event_group);
-    if (bits & WIFI_CONNECTED_BIT) {
-        wifi_connected = true;
-    } else {
-        wifi_connected = false;
+    if (!wifi_is_connected()) {
         flash_led();
     }
 }
@@ -153,38 +161,6 @@ void wifi_status_task(void *pvParameters)
         check_wifi_connection();
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
-}
-
-void http_get_task(void *pvParameters)
-{
-    esp_http_client_config_t config = {
-        .url = "http://example.com/",
-        .event_handler = _http_event_handler,
-    };
-
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    if(!wifi_connected) {
-        ESP_LOGE(TAG, "Brak połączenia WiFi. Zadanie HTTP GET zakończone.");
-        esp_http_client_cleanup(client);
-        vTaskDelete(NULL);
-    }
-    esp_err_t err = esp_http_client_perform(client);
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "HTTP GET zakończony sukcesem, kod: %d",
-                 esp_http_client_get_status_code(client));
-        ESP_LOGI(TAG, "Długość odpowiedzi: %d", esp_http_client_get_content_length(client));
-        for(int i = 0; i < esp_http_client_get_content_length(client); i++) {
-            char buffer[2];
-            esp_http_client_read(client, buffer, 1);
-            buffer[1] = '\0';
-            printf("%s", buffer);
-        }
-    } else {
-        ESP_LOGE(TAG, "Błąd HTTP GET: %s", esp_err_to_name(err));
-    }
-
-    esp_http_client_cleanup(client);
-    vTaskDelete(NULL);
 }
 
 void wifi_init(void)
@@ -201,5 +177,4 @@ void wifi_init(void)
     gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
 
     xTaskCreate(&wifi_status_task, "wifi_status_task", 2048, NULL, 5, NULL);
-    xTaskCreate(&http_get_task, "http_get_task", 4096, NULL, 5, NULL);
 }

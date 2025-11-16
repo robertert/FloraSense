@@ -1,21 +1,24 @@
 #pragma once
 
 #include "esp_err.h"
-#include "esp_http_client.h"
 #include "freertos/event_groups.h"
+#include <stdbool.h>
 
 #include "config.h"
 
 /**
  * @file wifi_module.h
- * @brief Obsługa połączenia Wi-Fi oraz żądań HTTP dla ESP32.
+ * @brief Obsługa połączenia Wi-Fi dla ESP32.
  */
 
 // Eksportowany uchwyt grupy zdarzeń Wi-Fi
 extern EventGroupHandle_t s_wifi_event_group;
 
-// Zmienna statusu połączenia
-extern bool wifi_connected;
+/**
+ * @brief Sprawdza czy WiFi jest połączone (thread-safe)
+ * @return true jeśli połączone, false w przeciwnym razie
+ */
+bool wifi_is_connected(void);
 
 /**
  * @brief Inicjalizuje Wi-Fi w trybie stacji (STA).
@@ -37,9 +40,3 @@ void check_wifi_connection(void);
  * @param pvParameters Parametr zadania (niewykorzystywany).
  */
 void wifi_status_task(void *pvParameters);
-
-/**
- * @brief Zadanie FreeRTOS wykonujące żądanie HTTP GET.
- * @param pvParameters Parametr zadania (niewykorzystywany).
- */
-void http_get_task(void *pvParameters);
