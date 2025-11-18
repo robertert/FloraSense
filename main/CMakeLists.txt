@@ -2,7 +2,7 @@ idf_component_register(
     SRCS
         "flora-sense.c"
         "wifi.c"
-        "itag_client.c"
+        "ble_client.c"
         "http_client.c"
         "motor_controller.c"
         "sensors/sensor_light.c"
@@ -11,4 +11,13 @@ idf_component_register(
         "sensors/sensor_temp.c"
     INCLUDE_DIRS
         "."
+    REQUIRES
+        bt
+        nvs_flash
+        esp_http_client
+        esp_netif
+        freertos
+        driver
+        esp_wifi
+        lwip
 )
