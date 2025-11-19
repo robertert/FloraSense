@@ -18,6 +18,7 @@ idf_component_register(
         esp_netif
         freertos
         driver
+        esp_driver_gpio
         esp_wifi
         lwip
 )
