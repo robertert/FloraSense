@@ -3,6 +3,7 @@ idf_component_register(
         "flora-sense.c"
         "wifi.c"
         "ble_client.c"
+        "ble_server.c"
         "http_client.c"
         "motor_controller.c"
         "sensors/sensor_light.c"
