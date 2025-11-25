@@ -57,15 +57,12 @@ static void ble_client_task(void *param)
 void app_main(void)
 {
     nvs_init();
-    mqtt_app_start(); 
-    // init_ble();
-    xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 4096, NULL, 5, NULL);  
-
-    // Zwiększony stack dla http_get_task - potrzebny dla operacji sieciowych
-    //xTaskCreate(&http_get_task_raw, "http_get_task_raw", 8192, NULL, 5, NULL);
+    //wifi_init();                 
+    //mqtt_app_start();
+    //xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 4096, NULL, 5, NULL);
 
     xTaskCreate(wifi_init_task, "wifi_init_task", 4096, NULL, 5, NULL);
-    //xTaskCreate(ble_server_task, "ble_server_task", 4096, NULL, 5, NULL);
-    xTaskCreate(ble_client_task, "ble_client_task", 8192, NULL, 5, NULL);
+    xTaskCreate(ble_server_task, "ble_server_task", 4096, NULL, 5, NULL);
+    //xTaskCreate(ble_client_task, "ble_client_task", 8192, NULL, 5, NULL);
     xTaskCreate(http_get_task_raw, "http_get_task_raw", 8192, NULL, 5, NULL);
 }
