@@ -10,8 +10,9 @@ idf_component_register(
         "sensors/sensor_proximity.c"
         "sensors/sensor_soil.c"
         "sensors/sensor_temp.c"
+        "mqtt_client.c"
     INCLUDE_DIRS
-        "."
+        "." "sensors"
     REQUIRES
         bt
         nvs_flash
