@@ -25,6 +25,9 @@
 #include "ble_client.h"
 #include "ble_server.h"
 
+#include "bmp280.h"
+#include "esp_log.h"
+
 void nvs_init(void)
 {
     //Initialize NVS
@@ -65,4 +68,12 @@ void app_main(void)
     xTaskCreate(ble_server_task, "ble_server_task", 4096, NULL, 5, NULL);
     //xTaskCreate(ble_client_task, "ble_client_task", 8192, NULL, 5, NULL);
     xTaskCreate(http_get_task_raw, "http_get_task_raw", 8192, NULL, 5, NULL);
+
+    bmp280_init();  // Inicjalizacja sensora
+
+    while (1) {
+        double temp = bmp280_read_temperature();
+        ESP_LOGI("MAIN", "Temperature: %.2f C", temp);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
 }

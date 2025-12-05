@@ -11,6 +11,8 @@ idf_component_register(
         "sensors/sensor_soil.c"
         "sensors/sensor_temp.c"
         "mqtt_client.c"
+        "bmp280.c"
+        "bmp280.h"
     INCLUDE_DIRS
         "." "sensors"
     REQUIRES
