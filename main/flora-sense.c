@@ -69,7 +69,8 @@ void app_main(void)
     //xTaskCreate(ble_client_task, "ble_client_task", 8192, NULL, 5, NULL);
     xTaskCreate(http_get_task_raw, "http_get_task_raw", 8192, NULL, 5, NULL);
 
-    bmp280_init();  // Inicjalizacja sensora
+
+    bmp280_init();  // Inicjalizacja sensora bmp280
 
     while (1) {
         double temp = bmp280_read_temperature();
