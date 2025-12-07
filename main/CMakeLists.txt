@@ -1,22 +1,13 @@
 idf_component_register(
     SRCS
-        "flora-sense.c"
-        "wifi.c"
-        "ble_client.c"
-        "ble_server.c"
-        "http_client.c"
-        "motor_controller.c"
-        "sensors/sensor_light.c"
-        "sensors/sensor_proximity.c"
-        "sensors/sensor_soil.c"
-        "sensors/sensor_temp.c"
-        "mqtt_client.c"
+        "access-point.c"
     INCLUDE_DIRS
         "." "sensors"
     REQUIRES
         bt
         nvs_flash
         esp_http_client
+        esp_http_server
         esp_netif
         freertos
         driver
