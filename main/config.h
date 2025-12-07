@@ -59,3 +59,12 @@
 #define VEML7700_DEFAULT_GAIN             VEML7700_GAIN_1X
 #define VEML7700_DEFAULT_IT               VEML7700_IT_100MS
 #define LIGHT_SENSOR_POLL_PERIOD_MS       3000
+
+// Konfiguracja czujnika temperatury/wilgotności/ciśnienia (I2C, BME280)
+#define TEMP_SENSOR_I2C_PORT              I2C_NUM_0  // Ten sam port co sensor światła
+#define TEMP_SENSOR_I2C_SDA_GPIO          GPIO_NUM_21
+#define TEMP_SENSOR_I2C_SCL_GPIO          GPIO_NUM_22
+#define TEMP_SENSOR_I2C_FREQ_HZ           50000  // Zmniejszona częstotliwość dla lepszej stabilności
+#define BME280_I2C_ADDRESS                0x76  // GND=0x76, VCC=0x77
+#define BME280_CHIP_ID                    0x60
+#define TEMP_SENSOR_POLL_PERIOD_MS        5000

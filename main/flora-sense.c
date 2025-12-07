@@ -24,6 +24,8 @@
 #include "ble_server.h"
 #include "sensors/sensor_soil.h"
 #include "sensors/sensor_light.h"
+#include "sensors/sensor_temp.h"
+
 
 
 void nvs_init(void)
@@ -81,7 +83,10 @@ static char *TAG = "flora-sense";
 void app_main(void)
 {
     nvs_init();
-
+    sensor_temp_init();
+    sensor_temp_reading_t reading;
+    sensor_temp_read(&reading);
+    ESP_LOGI(TAG, "Temperature: %.2f°C, Humidity: %.2f%%", reading.temperature_c, reading.humidity_percent);
     //xTaskCreate(wifi_init_task, "wifi_init_task", 4096, NULL, 5, NULL);
     //xTaskCreate(ble_server_task, "ble_server_task", 4096, NULL, 5, NULL);
     //xTaskCreate(ble_client_task, "ble_client_task", 8192, NULL, 5, NULL);
