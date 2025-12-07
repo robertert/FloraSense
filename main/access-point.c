@@ -51,7 +51,7 @@ void save_config_to_nvs(app_config_t *cfg) {
         nvs_set_str(my_handle, "ssid", cfg->ssid);
         nvs_set_str(my_handle, "pass", cfg->password);
         nvs_set_str(my_handle, "custom", cfg->custom_param);
-        nvs_set_u8(my_handle, "configured", 1); // Flaga, że config istnieje
+        nvs_set_u8(my_handle, "configured", 1);
         nvs_commit(my_handle);
         nvs_close(my_handle);
         ESP_LOGI(TAG, "Konfiguracja zapisana do NVS.");
@@ -77,7 +77,7 @@ bool load_config_from_nvs(app_config_t *cfg) {
 
         required_size = sizeof(cfg->custom_param);
         if(nvs_get_str(my_handle, "custom", cfg->custom_param, &required_size) != ESP_OK) {
-            strcpy(cfg->custom_param, ""); // Pusty jeśli brak
+            strcpy(cfg->custom_param, "");
         }
 
         nvs_close(my_handle);
@@ -106,13 +106,11 @@ const char* html_form =
     "<input type=\"submit\" value=\"Zapisz i Restartuj\">"
     "</form></body></html>";
 
-/* Handler dla GET / - wyświetla formularz */
 esp_err_t root_get_handler(httpd_req_t *req) {
     httpd_resp_send(req, html_form, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
 
-/* Funkcja pomocnicza do dekodowania URL (zamiana %20 na spacje itp.) - uproszczona */
 void url_decode(char *dst, const char *src) {
     char a, b;
     while (*src) {
@@ -133,11 +131,10 @@ void url_decode(char *dst, const char *src) {
     *dst = '\0';
 }
 
-/* Funkcja pomocnicza do wyciągania wartości z body POST */
 void get_post_val(char *buf, const char *key, char *out_val, int max_len) {
     char *found = strstr(buf, key);
     if (found) {
-        found += strlen(key) + 1; // Przeskocz klucz i znak '='
+        found += strlen(key) + 1;
         char *end = strchr(found, '&');
         int len = end ? (end - found) : strlen(found);
         if (len >= max_len) len = max_len - 1;
@@ -145,13 +142,12 @@ void get_post_val(char *buf, const char *key, char *out_val, int max_len) {
         char temp[128];
         strncpy(temp, found, len);
         temp[len] = 0;
-        url_decode(out_val, temp); // Dekodowanie URL
+        url_decode(out_val, temp);
     }
 }
 
-/* Handler dla POST /save - zapisuje dane */
 esp_err_t save_post_handler(httpd_req_t *req) {
-    char buf[200]; // Bufor na dane z formularza
+    char buf[200];
     int ret, remaining = req->content_len;
 
     if (remaining >= sizeof(buf)) {
@@ -167,21 +163,13 @@ esp_err_t save_post_handler(httpd_req_t *req) {
     }
     buf[remaining] = '\0';
 
-    // Parsowanie danych
     app_config_t new_config = {0};
     get_post_val(buf, "ssid", new_config.ssid, sizeof(new_config.ssid));
     get_post_val(buf, "pass", new_config.password, sizeof(new_config.password));
     get_post_val(buf, "custom", new_config.custom_param, sizeof(new_config.custom_param));
-
     ESP_LOGI(TAG, "Otrzymano: SSID=%s, Pass=%s", new_config.ssid, new_config.password);
-
-    // Zapisz do NVS
     save_config_to_nvs(&new_config);
-
-    // Odpowiedź dla użytkownika
     httpd_resp_send(req, "Ustawienia zapisane. Restartowanie...", HTTPD_RESP_USE_STRLEN);
-
-    // Opóźniony restart
     vTaskDelay(pdMS_TO_TICKS(2000));
     esp_restart();
 
@@ -203,7 +191,6 @@ void start_webserver() {
     }
 }
 
-// --- WIFI START ---
 int tries = 0;
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                int32_t event_id, void* event_data) {
@@ -266,10 +253,7 @@ void start_wifi_sta() {
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
-// --- MAIN ---
-
 void app_main(void) {
-    // 1. Inicjalizacja NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -280,10 +264,6 @@ void app_main(void) {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    // 2. Sprawdzenie przycisku resetu (GPIO 0)
-    
-    
-    // Proste debouncing/sprawdzenie
     bool button_pressed = false;
 
     for (int i = 0; i < 30; i++) {
@@ -291,24 +271,17 @@ void app_main(void) {
         if (gpio_get_level(GPIO_RESET_BUTTON) == 0) {
             button_pressed = true;
             ESP_LOGW(TAG, "Wykryto przycisk! Wchodze w tryb AP...");
-            break; // Wychodzimy z pętli od razu po wykryciu
+            break;
         }
-        vTaskDelay(pdMS_TO_TICKS(100)); // Czekaj 100ms
-    }
-    if (button_pressed) {
-        ESP_LOGW(TAG, "Przycisk wcisniety - wymuszam tryb konfiguracji (AP)!");
-        // Opcjonalnie: clear_nvs_config(); // Jeśli chcesz od razu czyścić
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    // 3. Logika wyboru trybu
     bool has_config = load_config_from_nvs(&current_config);
 
     if (button_pressed || !has_config) {
-        // Tryb konfiguracji
         start_wifi_ap();
         start_webserver();
     } else {
-        // Tryb normalnej pracy
         ESP_LOGI(TAG, "Konfiguracja znaleziona. Uruchamianie WiFi STA.");
         start_wifi_sta();
     }
