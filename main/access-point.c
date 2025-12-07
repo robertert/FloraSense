@@ -13,6 +13,9 @@
 #include "lwip/sys.h"
 #include "esp_http_server.h"
 #include "esp_random.h"
+#include <string.h>
+#include "esp_log.h"
+#include "mbedtls/gcm.h"
 
 #define TAG "CUSTOM_CONFIG"
 #define GPIO_RESET_BUTTON 0 
@@ -254,15 +257,45 @@ void start_wifi_sta() {
 }
 
 void app_main(void) {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
+    const esp_partition_t *key_part = esp_partition_find_first(
+            ESP_PARTITION_TYPE_DATA, 
+            ESP_PARTITION_SUBTYPE_DATA_NVS_KEYS, 
+            "nvs_key");
 
+    if (key_part == NULL) {
+        ESP_LOGE(TAG, "BŁĄD: Nie znaleziono partycji 'nvs_key' w tablicy partycji! Sprawdź partitions.csv");
+        return; // Nie ma sensu iść dalej bez kluczy
+    }
+
+    nvs_sec_cfg_t cfg;
+    esp_err_t err = nvs_flash_read_security_cfg(key_part, &cfg);
+    
+    if (err == ESP_ERR_NVS_NOT_INITIALIZED || err == ESP_ERR_NVS_KEYS_NOT_INITIALIZED) {
+        ESP_LOGI(TAG, "Klucze NVS nie istnieją. Generowanie nowych...");
+        // Tu przekazujemy wskaźnik key_part, a nie string "nvs_key"
+        err = nvs_flash_generate_keys(key_part, &cfg);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Błąd generowania kluczy NVS: %s", esp_err_to_name(err));
+            return;
+        }
+    } else if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Błąd odczytu kluczy NVS: %s", esp_err_to_name(err));
+        return;
+    }
+
+    // 2. Bezpieczna inicjalizacja głównego NVS z użyciem kluczy
+    err = nvs_flash_secure_init(&cfg);
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGW(TAG, "NVS uszkodzony/niekompatybilny. Czyszczenie...");
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_secure_init(&cfg);
+    }
+    ESP_ERROR_CHECK(err);
+
+    // Reszta inicjalizacji systemu
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+
 
     bool button_pressed = false;
 
