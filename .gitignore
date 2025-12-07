@@ -13,6 +13,8 @@ Makefile
 *.map
 *.out
 
+.cache/
+
 # Cache ESP-IDF
 .sdkconfig
 sdkconfig.old

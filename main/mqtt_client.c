@@ -22,7 +22,7 @@
 static const char *TAG = "flora-mqtt";
 
 /* ---- USTAW TO DO SWOJEJ SIECI ---- */
-#define MQTT_BROKER_URI "mqtt://172.20.10.3:1883"   // ← ZMIEŃ IP na swój komputer
+#define MQTT_BROKER_URI "mqtt://172.20.10.3:1883" 
 
 /* ---- IDENTYFIKATORY UŻYTKOWNIK/URZĄDZENIE ---- */
 #define USER_ID     "user1"
