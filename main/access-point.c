@@ -272,7 +272,6 @@ void app_main(void) {
     
     if (err == ESP_ERR_NVS_NOT_INITIALIZED || err == ESP_ERR_NVS_KEYS_NOT_INITIALIZED) {
         ESP_LOGI(TAG, "Klucze NVS nie istnieją. Generowanie nowych...");
-        // Tu przekazujemy wskaźnik key_part, a nie string "nvs_key"
         err = nvs_flash_generate_keys(key_part, &cfg);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Błąd generowania kluczy NVS: %s", esp_err_to_name(err));
@@ -283,7 +282,6 @@ void app_main(void) {
         return;
     }
 
-    // 2. Bezpieczna inicjalizacja głównego NVS z użyciem kluczy
     err = nvs_flash_secure_init(&cfg);
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_LOGW(TAG, "NVS uszkodzony/niekompatybilny. Czyszczenie...");
@@ -292,7 +290,6 @@ void app_main(void) {
     }
     ESP_ERROR_CHECK(err);
 
-    // Reszta inicjalizacji systemu
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
