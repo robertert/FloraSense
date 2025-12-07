@@ -12,22 +12,37 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "esp_http_server.h"
+#include "esp_random.h"
 
 #define TAG "CUSTOM_CONFIG"
-#define GPIO_RESET_BUTTON 0  // Przycisk BOOT
+#define GPIO_RESET_BUTTON 0 
 #define CONFIG_AP_SSID "ESP32_SETUP"
-#define CONFIG_AP_PASS "12345678" // Hasło do sieci konfiguracyjnej
 
-// Struktura przechowująca konfigurację
 typedef struct {
     char ssid[32];
     char password[64];
-    char custom_param[32]; // Np. token API lub MQTT IP
+    char custom_param[32];
 } app_config_t;
 
 app_config_t current_config;
 
-// --- OBSŁUGA NVS (ZAPIS/ODCZYT) ---
+void generate_password_from_noise(char *buffer, size_t len) {
+    const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+    size_t charset_len = strlen(charset);
+    uint8_t *random_bytes = malloc(len);
+    if (random_bytes == NULL) {
+        ESP_LOGE(TAG, "Błąd alokacji pamięci");
+        return;
+    }
+    esp_fill_random(random_bytes, len);
+    for (size_t i = 0; i < len; i++) {
+        buffer[i] = charset[random_bytes[i] % charset_len];
+    }
+    buffer[len] = '\0';
+
+    free(random_bytes);
+}
+
 
 void save_config_to_nvs(app_config_t *cfg) {
     nvs_handle_t my_handle;
@@ -81,10 +96,6 @@ void clear_nvs_config() {
         ESP_LOGW(TAG, "NVS wyczyszczony.");
     }
 }
-
-// --- SERWER HTTP (STRONA KONFIGURACYJNA) ---
-
-/* Prosta strona HTML zaszyta w kodzie */
 const char* html_form = 
     "<!DOCTYPE html><html><body>"
     "<h2>Konfiguracja ESP32</h2>"
@@ -219,22 +230,23 @@ void start_wifi_ap() {
     esp_netif_create_default_wifi_ap();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
+    char pass[11];
+    generate_password_from_noise(pass,10);
     wifi_config_t wifi_config = {
         .ap = {
             .ssid = CONFIG_AP_SSID,
             .ssid_len = strlen(CONFIG_AP_SSID),
-            .password = CONFIG_AP_PASS,
             .max_connection = 4,
-            .authmode = WIFI_AUTH_WPA_WPA2_PSK // Lub WIFI_AUTH_OPEN dla otwartej
+            .authmode = WIFI_AUTH_WPA_WPA2_PSK
         },
     };
-    if (strlen(CONFIG_AP_PASS) == 0) wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+    strlcpy((char*)wifi_config.ap.password, pass, sizeof(wifi_config.ap.password));
+    if (strlen(pass) == 0) wifi_config.ap.authmode = WIFI_AUTH_OPEN;
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_LOGI(TAG, "WiFi AP uruchomione. SSID: %s, IP: 192.168.4.1", CONFIG_AP_SSID);
+    ESP_LOGI(TAG, "WiFi AP uruchomione. SSID: %s, IP: 192.168.4.1 HASŁO: %s", CONFIG_AP_SSID,pass);
 }
 
 void start_wifi_sta() {
