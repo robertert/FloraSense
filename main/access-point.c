@@ -250,12 +250,12 @@ void clear_nvs_config() {
 }
 esp_err_t root_get_handler(httpd_req_t *req) {
     const char* html_response = 
-        "<!DOCTYPE html><html><body>"
-        "<h2>Bezpieczna konfiguracja (HTTPS)</h2>"
-        "<p>Polaczenie jest szyfrowane.</p>"
+        "<!DOCTYPE html><html><body style=\"display: flex; flex-direction: column; justify-content: center; align-items: center;\">"
+        "<h2>KONFIGURACJA SIECI WIFI</h2>"
         "<form action=\"/save\" method=\"post\">"
         "SSID:<br><input type=\"text\" name=\"ssid\"><br>"
-        "Haslo:<br><input type=\"text\" name=\"pass\"><br>"
+        "Haslo:<br><input type=\"password\" name=\"pass\"><br>"
+        "Dodatkowe parametry:<br><input type=\"text\" name=\"custom\"><br>"
         "<input type=\"submit\" value=\"Zapisz\">"
         "</form></body></html>";
     httpd_resp_send(req, html_response, HTTPD_RESP_USE_STRLEN);
@@ -313,12 +313,11 @@ esp_err_t save_post_handler(httpd_req_t *req) {
     buf[remaining] = '\0';
     
     ESP_LOGI(TAG, "Odebrano zaszyfrowane dane: %s", buf);
-    // Tutaj parsowanie i zapis do NVS (ssid/pass)...
     app_config_t new_config = {0};
     get_post_val(buf, "ssid", new_config.ssid, sizeof(new_config.ssid));
     get_post_val(buf, "pass", new_config.password, sizeof(new_config.password));
     get_post_val(buf, "custom", new_config.custom_param, sizeof(new_config.custom_param));
-    ESP_LOGI(TAG, "Otrzymano: SSID=%s, Pass=%s", new_config.ssid, new_config.password);
+    //ESP_LOGI(TAG, "Otrzymano: SSID=%s, Pass=%s", new_config.ssid, new_config.password);
     save_config_to_nvs(&new_config);
     httpd_resp_send(req, "Ustawienia zapisane. Restartowanie...", HTTPD_RESP_USE_STRLEN);
 
