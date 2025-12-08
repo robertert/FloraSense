@@ -76,8 +76,6 @@ esp_err_t load_str_from_nvs(const char *key, char **out_value) {
     if (key == NULL || out_value == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
-    
-    // Zabezpieczenie: ustawiamy na NULL na starcie
     *out_value = NULL;
 
     nvs_handle_t handle;
@@ -85,19 +83,16 @@ esp_err_t load_str_from_nvs(const char *key, char **out_value) {
     if (err != ESP_OK) return err;
 
     size_t required_size = 0;
-    // 1. Pobranie rozmiaru
     err = nvs_get_str(handle, key, NULL, &required_size);
     
     if (err == ESP_OK) {
-        // Alokacja pamięci
         char *buffer = malloc(required_size);
         if (buffer) {
-            // 2. Pobranie faktycznych danych
             err = nvs_get_str(handle, key, buffer, &required_size);
             if (err == ESP_OK) {
-                *out_value = buffer; // Sukces, przypisujemy wskaźnik
+                *out_value = buffer;
             } else {
-                free(buffer); // Błąd odczytu danych, zwalniamy pamięć
+                free(buffer);
             }
         } else {
             err = ESP_ERR_NO_MEM;
@@ -111,7 +106,6 @@ esp_err_t load_str_from_nvs(const char *key, char **out_value) {
 void generate_certificates() {
     ESP_LOGW(TAG, "GEN: Generowanie kluczy RSA (moze potrwac do 20s)...");
     
-    // ... inicjalizacja zmiennych bez zmian ...
     int ret;
     mbedtls_pk_context key;
     mbedtls_entropy_context entropy;
@@ -123,12 +117,10 @@ void generate_certificates() {
     mbedtls_entropy_init(&entropy);
     mbedtls_x509write_crt_init(&crt);
 
-    // Seed
     if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)"ESP_V3", 6)) != 0) {
         ESP_LOGE(TAG, "GEN: Blad DRBG");
     }
 
-    // Generowanie
     ESP_LOGI(TAG, "GEN: Obliczam RSA...");
     if ((ret = mbedtls_pk_setup(&key, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA))) != 0 ||
         (ret = mbedtls_rsa_gen_key(mbedtls_pk_rsa(key), mbedtls_ctr_drbg_random, &ctr_drbg, 2048, 65537)) != 0) {
@@ -136,7 +128,6 @@ void generate_certificates() {
         return;
     }
 
-    // Konfiguracja certyfikatu
     ESP_LOGI(TAG, "GEN: Podpisywanie...");
     const char *subject_name = "CN=ESP32,O=IoT,C=PL";
 
@@ -154,7 +145,6 @@ void generate_certificates() {
     mbedtls_x509write_crt_set_subject_key_identifier(&crt);
     mbedtls_x509write_crt_set_authority_key_identifier(&crt);
 
-    // Zapis do RAM
     size_t buf_len = 4096;
     char *key_buf = calloc(1, buf_len);
     char *crt_buf = calloc(1, buf_len);
@@ -162,10 +152,8 @@ void generate_certificates() {
     mbedtls_pk_write_key_pem(&key, (unsigned char*)key_buf, buf_len);
     mbedtls_x509write_crt_pem(&crt, (unsigned char*)crt_buf, buf_len, mbedtls_ctr_drbg_random, &ctr_drbg);
 
-    // DEBUG: Wypisz na ekran
     printf("%s\n", crt_buf);
 
-    // ZAPIS DO NVS (Używamy krótkich nazw: "key" i "cert")
     ESP_LOGI(TAG, "GEN: Zapis do NVS...");
     esp_err_t e1 = save_str_to_nvs("srv_key", key_buf);
     esp_err_t e2 = save_str_to_nvs("srv_cert", crt_buf);
@@ -186,7 +174,6 @@ void generate_certificates() {
 
 
 void ensure_certificates_exist() {
-    // Używamy nowych, krótkich nazw: "srv_cert" i "srv_key"
     if (load_str_from_nvs("srv_cert", &server_cert_pem) != ESP_OK || 
         load_str_from_nvs("srv_key", &server_key_pem) != ESP_OK) {
         
@@ -195,8 +182,6 @@ void ensure_certificates_exist() {
         if (server_key_pem) free(server_key_pem);
         
         generate_certificates();
-
-        // Ponowne ładowanie po generowaniu
         load_str_from_nvs("srv_cert", &server_cert_pem);
         load_str_from_nvs("srv_key", &server_key_pem);
     }
