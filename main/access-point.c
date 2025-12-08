@@ -11,15 +11,24 @@
 #include "driver/gpio.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
-#include "esp_http_server.h"
+#include "esp_https_server.h"
 #include "esp_random.h"
 #include <string.h>
 #include "esp_log.h"
 #include "mbedtls/gcm.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/x509_crt.h"
+#include "mbedtls/rsa.h"
+#include "mbedtls/pk.h"
+#include "mbedtls/x509_csr.h"
 
 #define TAG "CUSTOM_CONFIG"
 #define GPIO_RESET_BUTTON 0 
 #define CONFIG_AP_SSID "ESP32_SETUP"
+
+char *server_cert_pem = NULL;
+char *server_key_pem = NULL;
 
 typedef struct {
     char ssid[32];
@@ -44,6 +53,161 @@ void generate_password_from_noise(char *buffer, size_t len) {
     buffer[len] = '\0';
 
     free(random_bytes);
+}
+
+esp_err_t save_str_to_nvs(const char *key, const char *value) {
+    if (key == NULL || value == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
+    if (err == ESP_OK) {
+        err = nvs_set_str(handle, key, value);
+        if (err == ESP_OK) {
+            err = nvs_commit(handle);
+        }
+        nvs_close(handle);
+    }
+    return err;
+}
+
+esp_err_t load_str_from_nvs(const char *key, char **out_value) {
+    if (key == NULL || out_value == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    
+    // Zabezpieczenie: ustawiamy na NULL na starcie
+    *out_value = NULL;
+
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("storage", NVS_READONLY, &handle);
+    if (err != ESP_OK) return err;
+
+    size_t required_size = 0;
+    // 1. Pobranie rozmiaru
+    err = nvs_get_str(handle, key, NULL, &required_size);
+    
+    if (err == ESP_OK) {
+        // Alokacja pamięci
+        char *buffer = malloc(required_size);
+        if (buffer) {
+            // 2. Pobranie faktycznych danych
+            err = nvs_get_str(handle, key, buffer, &required_size);
+            if (err == ESP_OK) {
+                *out_value = buffer; // Sukces, przypisujemy wskaźnik
+            } else {
+                free(buffer); // Błąd odczytu danych, zwalniamy pamięć
+            }
+        } else {
+            err = ESP_ERR_NO_MEM;
+        }
+    }
+    
+    nvs_close(handle);
+    return err;
+}
+
+void generate_certificates() {
+    ESP_LOGW(TAG, "GEN: Generowanie kluczy RSA (moze potrwac do 20s)...");
+    
+    // ... inicjalizacja zmiennych bez zmian ...
+    int ret;
+    mbedtls_pk_context key;
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_x509write_cert crt;
+
+    mbedtls_pk_init(&key);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    mbedtls_entropy_init(&entropy);
+    mbedtls_x509write_crt_init(&crt);
+
+    // Seed
+    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)"ESP_V3", 6)) != 0) {
+        ESP_LOGE(TAG, "GEN: Blad DRBG");
+    }
+
+    // Generowanie
+    ESP_LOGI(TAG, "GEN: Obliczam RSA...");
+    if ((ret = mbedtls_pk_setup(&key, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA))) != 0 ||
+        (ret = mbedtls_rsa_gen_key(mbedtls_pk_rsa(key), mbedtls_ctr_drbg_random, &ctr_drbg, 2048, 65537)) != 0) {
+        ESP_LOGE(TAG, "GEN: Blad RSA -0x%x", -ret);
+        return;
+    }
+
+    // Konfiguracja certyfikatu
+    ESP_LOGI(TAG, "GEN: Podpisywanie...");
+    const char *subject_name = "CN=ESP32,O=IoT,C=PL";
+
+    mbedtls_x509write_crt_set_subject_name(&crt, subject_name);
+    mbedtls_x509write_crt_set_issuer_name(&crt, subject_name); 
+    mbedtls_x509write_crt_set_issuer_key(&crt, &key);
+    mbedtls_x509write_crt_set_subject_key(&crt, &key);
+    mbedtls_x509write_crt_set_md_alg(&crt, MBEDTLS_MD_SHA256);
+    mbedtls_x509write_crt_set_validity(&crt, "20230101000000", "20351231235959");
+
+    unsigned char serial[] = {0x01}; 
+    mbedtls_x509write_crt_set_serial_raw(&crt, serial, 1);
+
+    mbedtls_x509write_crt_set_basic_constraints(&crt, 0, -1);
+    mbedtls_x509write_crt_set_subject_key_identifier(&crt);
+    mbedtls_x509write_crt_set_authority_key_identifier(&crt);
+
+    // Zapis do RAM
+    size_t buf_len = 4096;
+    char *key_buf = calloc(1, buf_len);
+    char *crt_buf = calloc(1, buf_len);
+
+    mbedtls_pk_write_key_pem(&key, (unsigned char*)key_buf, buf_len);
+    mbedtls_x509write_crt_pem(&crt, (unsigned char*)crt_buf, buf_len, mbedtls_ctr_drbg_random, &ctr_drbg);
+
+    // DEBUG: Wypisz na ekran
+    printf("%s\n", crt_buf);
+
+    // ZAPIS DO NVS (Używamy krótkich nazw: "key" i "cert")
+    ESP_LOGI(TAG, "GEN: Zapis do NVS...");
+    esp_err_t e1 = save_str_to_nvs("srv_key", key_buf);
+    esp_err_t e2 = save_str_to_nvs("srv_cert", crt_buf);
+
+    if (e1 == ESP_OK && e2 == ESP_OK) {
+        ESP_LOGI(TAG, "GEN: Zapis zakonczony sukcesem!");
+    } else {
+        ESP_LOGE(TAG, "GEN: Blad zapisu do NVS! Key: %s, Cert: %s", esp_err_to_name(e1), esp_err_to_name(e2));
+    }
+    
+    free(key_buf);
+    free(crt_buf);
+    mbedtls_pk_free(&key);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+    mbedtls_x509write_crt_free(&crt);
+}
+
+
+void ensure_certificates_exist() {
+    // Używamy nowych, krótkich nazw: "srv_cert" i "srv_key"
+    if (load_str_from_nvs("srv_cert", &server_cert_pem) != ESP_OK || 
+        load_str_from_nvs("srv_key", &server_key_pem) != ESP_OK) {
+        
+        ESP_LOGW(TAG, "Brak kluczy. Generuje nowe...");
+        if (server_cert_pem) free(server_cert_pem);
+        if (server_key_pem) free(server_key_pem);
+        
+        generate_certificates();
+
+        // Ponowne ładowanie po generowaniu
+        load_str_from_nvs("srv_cert", &server_cert_pem);
+        load_str_from_nvs("srv_key", &server_key_pem);
+    }
+    
+    if (server_cert_pem && server_key_pem) {
+        ESP_LOGI(TAG, "Certyfikaty gotowe.");
+
+    } else {
+        ESP_LOGE(TAG, "KRYTYCZNY BLAD: Nie udalo sie zaladowac certyfikatow po wygenerowaniu!");
+    }
+
 }
 
 
@@ -99,18 +263,17 @@ void clear_nvs_config() {
         ESP_LOGW(TAG, "NVS wyczyszczony.");
     }
 }
-const char* html_form = 
-    "<!DOCTYPE html><html><body>"
-    "<h2>Konfiguracja ESP32</h2>"
-    "<form action=\"/save\" method=\"post\">"
-    "SSID:<br><input type=\"text\" name=\"ssid\"><br>"
-    "Haslo:<br><input type=\"text\" name=\"pass\"><br>"
-    "Custom Param:<br><input type=\"text\" name=\"custom\"><br><br>"
-    "<input type=\"submit\" value=\"Zapisz i Restartuj\">"
-    "</form></body></html>";
-
 esp_err_t root_get_handler(httpd_req_t *req) {
-    httpd_resp_send(req, html_form, HTTPD_RESP_USE_STRLEN);
+    const char* html_response = 
+        "<!DOCTYPE html><html><body>"
+        "<h2>Bezpieczna konfiguracja (HTTPS)</h2>"
+        "<p>Polaczenie jest szyfrowane.</p>"
+        "<form action=\"/save\" method=\"post\">"
+        "SSID:<br><input type=\"text\" name=\"ssid\"><br>"
+        "Haslo:<br><input type=\"text\" name=\"pass\"><br>"
+        "<input type=\"submit\" value=\"Zapisz\">"
+        "</form></body></html>";
+    httpd_resp_send(req, html_response, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
 
@@ -159,13 +322,13 @@ esp_err_t save_post_handler(httpd_req_t *req) {
     }
 
     if ((ret = httpd_req_recv(req, buf, remaining)) <= 0) {
-        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-            httpd_resp_send_408(req);
-        }
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) httpd_resp_send_408(req);
         return ESP_FAIL;
     }
     buf[remaining] = '\0';
-
+    
+    ESP_LOGI(TAG, "Odebrano zaszyfrowane dane: %s", buf);
+    // Tutaj parsowanie i zapis do NVS (ssid/pass)...
     app_config_t new_config = {0};
     get_post_val(buf, "ssid", new_config.ssid, sizeof(new_config.ssid));
     get_post_val(buf, "pass", new_config.password, sizeof(new_config.password));
@@ -173,24 +336,36 @@ esp_err_t save_post_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Otrzymano: SSID=%s, Pass=%s", new_config.ssid, new_config.password);
     save_config_to_nvs(&new_config);
     httpd_resp_send(req, "Ustawienia zapisane. Restartowanie...", HTTPD_RESP_USE_STRLEN);
+
+    httpd_resp_send(req, "OK. Restart...", HTTPD_RESP_USE_STRLEN);
     vTaskDelay(pdMS_TO_TICKS(2000));
     esp_restart();
-
     return ESP_OK;
 }
 
-void start_webserver() {
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+void start_webserver_https() {
     httpd_handle_t server = NULL;
+    httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
+    config.httpd.stack_size = 16384;
 
-    if (httpd_start(&server, &config) == ESP_OK) {
+    config.servercert = (const uint8_t *)server_cert_pem;
+    config.servercert_len = strlen(server_cert_pem) + 1;
+    config.prvtkey_pem = (const uint8_t *)server_key_pem;
+    config.prvtkey_len = strlen(server_key_pem) + 1;
+    
+    config.transport_mode = HTTPD_SSL_TRANSPORT_SECURE;
+
+    ESP_LOGI(TAG, "Startowanie serwera HTTPS...");
+    if (httpd_ssl_start(&server, &config) == ESP_OK) {
         httpd_uri_t root_uri = { .uri = "/", .method = HTTP_GET, .handler = root_get_handler };
         httpd_register_uri_handler(server, &root_uri);
 
         httpd_uri_t save_uri = { .uri = "/save", .method = HTTP_POST, .handler = save_post_handler };
         httpd_register_uri_handler(server, &save_uri);
         
-        ESP_LOGI(TAG, "Serwer HTTP uruchomiony na porcie 80");
+        ESP_LOGI(TAG, "HTTPS Serwer dziala na porcie 443!");
+    } else {
+        ESP_LOGE(TAG, "Blad startu HTTPS!");
     }
 }
 
@@ -264,7 +439,7 @@ void app_main(void) {
 
     if (key_part == NULL) {
         ESP_LOGE(TAG, "BŁĄD: Nie znaleziono partycji 'nvs_key' w tablicy partycji! Sprawdź partitions.csv");
-        return; // Nie ma sensu iść dalej bez kluczy
+        return;
     }
 
     nvs_sec_cfg_t cfg;
@@ -309,8 +484,9 @@ void app_main(void) {
     bool has_config = load_config_from_nvs(&current_config);
 
     if (button_pressed || !has_config) {
+        ensure_certificates_exist();
         start_wifi_ap();
-        start_webserver();
+        start_webserver_https();
     } else {
         ESP_LOGI(TAG, "Konfiguracja znaleziona. Uruchamianie WiFi STA.");
         start_wifi_sta();

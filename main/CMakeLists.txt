@@ -15,4 +15,7 @@ idf_component_register(
         esp_wifi
         lwip
         mqtt
+        mbedtls
+        esp_https_server
+        json
 )
