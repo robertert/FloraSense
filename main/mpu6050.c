@@ -264,31 +264,6 @@ esp_err_t mpu6050_init(const mpu6050_config_t *config, mpu6050_handle_t *handle)
         ESP_LOGW(TAG, "Unexpected WHO_AM_I value. Device may not be MPU6050 or connection issue.");
     }
 
-    // Set default configuration
-    // Clock source: PLL with X-axis gyro reference (recommended)
-    /*
-    ret = mpu6050_set_clock_source(handle, MPU6050_CLK_PLL_X_GYRO);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to set clock source");
-    }
-
-    // Default full scale ranges
-    ret = mpu6050_set_gyro_fs(handle, MPU6050_GYRO_FS_250DPS);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to set gyro full scale");
-    }
-
-    ret = mpu6050_set_accel_fs(handle, MPU6050_ACCEL_FS_2G);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to set accel full scale");
-    }
-
-    // Default DLPF: 44 Hz
-    ret = mpu6050_set_dlpf(handle, MPU6050_DLPF_44HZ);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to set DLPF");
-    }
-    */
     handle->initialized = true;
     ESP_LOGI(TAG, "MPU6050 initialized successfully");
     
@@ -330,32 +305,7 @@ esp_err_t mpu6050_deinit(mpu6050_handle_t *handle)
     return ret;
 }
 
-esp_err_t mpu6050_set_clock_source(mpu6050_handle_t *handle, mpu6050_clock_source_t clk_src)
-{
-    if (handle == NULL || !handle->initialized) {
-        return ESP_ERR_INVALID_STATE;
-    }
 
-    uint8_t reg_val;
-    esp_err_t ret = mpu6050_read_register(handle, MPU6050_REG_PWR_MGMT_1, &reg_val);
-    if (ret != ESP_OK) {
-        return ret;
-    }
-
-    // Clear clock source bits (2:0) and set new value
-    reg_val = (reg_val & ~MPU6050_PWR1_CLKSEL_MASK) | (clk_src & MPU6050_PWR1_CLKSEL_MASK);
-    
-    return mpu6050_write_register(handle, MPU6050_REG_PWR_MGMT_1, reg_val);
-}
-
-esp_err_t mpu6050_set_sample_rate_divider(mpu6050_handle_t *handle, uint8_t divider)
-{
-    if (handle == NULL || !handle->initialized) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    return mpu6050_write_register(handle, MPU6050_REG_SMPLRT_DIV, divider);
-}
 
 /* ============================================================================
  * Core Sensing & Conversion Functions
@@ -1004,19 +954,19 @@ esp_err_t mpu6050_get_gyro_offsets(mpu6050_handle_t *handle, float *x_offset, fl
 
     switch (fs) {
         case MPU6050_GYRO_FS_250DPS:
-            sensitivity = 131.0f;  // LSB/(deg/s)
+            sensitivity = 65.5f;  // LSB/(deg/s)
             break;
         case MPU6050_GYRO_FS_500DPS:
-            sensitivity = 65.5f;
-            break;
-        case MPU6050_GYRO_FS_1000DPS:
             sensitivity = 32.8f;
             break;
-        case MPU6050_GYRO_FS_2000DPS:
+        case MPU6050_GYRO_FS_1000DPS:
             sensitivity = 16.4f;
             break;
+        case MPU6050_GYRO_FS_2000DPS:
+            sensitivity = 8.2f;
+            break;
         default:
-            sensitivity = 131.0f;
+            sensitivity = 65.5f;
             break;
     }
 

@@ -71,14 +71,30 @@ static void mpu6050_test_task(void *param)
         ESP_LOGE(TAG, "Błąd init!"); vTaskDelete(NULL);
     }
     ESP_LOGI(TAG, "MPU6050 Init OK. WHO_AM_I zweryfikowane.");
+    
+    // 1. Konfiguracja pinu GPIO w ESP32
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << MPU_INT_PIN),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+    gpio_config(&io_conf);
 
-    // Demonstracja: Ustawienie Zegara i Sample Rate
-    ESP_LOGI(TAG, "Konfiguracja Zegara (PLL X-Gyro) i Sample Rate Divider...");
-    mpu6050_set_clock_source(&mpu, MPU6050_CLK_PLL_X_GYRO);
-    // Sample Rate = Gyro Rate / (1 + divider). Przy DLPF wyłączonym Gyro=8kHz.
-    // Ustawiamy divider na 7 -> Sample Rate = 8kHz / (1+7) = 1kHz
-    mpu6050_set_sample_rate_divider(&mpu, 7);
-    ESP_LOGI(TAG, "Zegar ustabilizowany, Sample Rate ustawiony na 1kHz.");
+    // 2. Konfiguracja pinu w MPU: Latch (zatrzask) = TRUE
+    // Dzięki temu pin INT będzie świecił ciągle AŻ do momentu, gdy odczytamy dane.
+    mpu6050_int_pin_cfg_t int_cfg = {
+        .int_level = false,   // 0 = Active High (3.3V gdy przerwanie)
+        .int_open = false,    // 0 = Push-Pull
+        .latch_enable = true, // 1 = Trzymaj stan wysoki aż procesor przeczyta
+        .int_rd_clear = true  // 1 = Kasuj stan wysoki przy odczycie
+    };
+    mpu6050_set_int_pin_cfg(&mpu, &int_cfg);
+
+    // 3. Włączamy przerwanie DATA READY
+    mpu6050_int_enable_t int_en = { .data_ready = true };
+    mpu6050_set_int_enable(&mpu, &int_en);
 
     // ========================================================================
     // KROK 2: Offsets (Kalibracja) - Odczyt i Zapis
@@ -217,29 +233,7 @@ static void mpu6050_test_task(void *param)
     // ========================================================================
     wait_and_explain("TEST PRZERWAN: Tryb Cycle Mode (Low Power 1.25Hz)", 3);
 
-    // 1. Konfiguracja pinu GPIO w ESP32
-    gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << MPU_INT_PIN),
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE
-    };
-    gpio_config(&io_conf);
-
-    // 2. Konfiguracja pinu w MPU: Latch (zatrzask) = TRUE
-    // Dzięki temu pin INT będzie świecił ciągle AŻ do momentu, gdy odczytamy dane.
-    mpu6050_int_pin_cfg_t int_cfg = {
-        .int_level = false,   // 0 = Active High (3.3V gdy przerwanie)
-        .int_open = false,    // 0 = Push-Pull
-        .latch_enable = true, // 1 = Trzymaj stan wysoki aż procesor przeczyta
-        .int_rd_clear = true  // 1 = Kasuj stan wysoki przy odczycie
-    };
-    mpu6050_set_int_pin_cfg(&mpu, &int_cfg);
-
-    // 3. Włączamy przerwanie DATA READY
-    mpu6050_int_enable_t int_en = { .data_ready = true };
-    mpu6050_set_int_enable(&mpu, &int_en);
+    
 
     // 4. URUCHAMIAMY CYCLE MODE (To jest klucz do "wolnego" przerwania)
     // Wymaga to: Włączenia Cycle bitu w PWR_MGMT_1 i wyłączenia Temp Sensora (wymóg Cycle Mode)
@@ -277,61 +271,81 @@ static void mpu6050_test_task(void *param)
     mpu6050_set_cycle_mode(&mpu, false); // Wyłącz tryb Cycle
     mpu6050_set_temp_sensor(&mpu, true); // Przywracamy temperaturę
     mpu6050_set_sleep_mode(&mpu, false); // Upewnij się, że Sleep jest wyłączony (Wake up)
+    
+    // Czekamy aż temperatura się ustabilizuje (czujnik temperatury potrzebuje czasu)
+    ESP_LOGI(TAG, "Czekam 100ms na ustabilizowanie temperatury...");
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     // ========================================================================
     // KROK 8: FIFO (Burst Read)
     // ========================================================================
     wait_and_explain("Test FIFO (Buforowanie danych)", 2);
 
+    // 1. Najpierw wyłączamy FIFO całkowicie
+    mpu6050_set_fifo_enable(&mpu, false);
+        
+    // 2. Resetujemy zawartość FIFO (czyszczenie śmieci)
     mpu6050_reset_fifo(&mpu);
-    
-    // Konfiguracja: Zbieramy tylko Temp (2 bajty) i GYRO Z (2 bajty) [RAZEM 4 BAJTY NA PRÓBKĘ]
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    // 3. Ustawiamy konfigurację (Temp)
     mpu6050_fifo_enable_t fifo_cfg = { 
         .temp_fifo_en = true, 
         .accel_fifo_en = false, 
-        .zg_fifo_en = true, 
+        .zg_fifo_en = false,    
         .xg_fifo_en = false, 
         .yg_fifo_en = false 
     };
     mpu6050_set_fifo_enable_config(&mpu, &fifo_cfg);
-    
-    // Zbieramy dane tylko przez 200ms (0.2s)
-    // Przy 1000Hz * 4 bajty = 4000 bajtów/sekundę.
-    // 0.2s * 4000 = 800 bajtów. (Bufor ma 1024 bajty, więc się zmieścimy!)
-    ESP_LOGI(TAG, "Włączam FIFO na 200ms (zeby nie przepelnic)...");
-    
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    // 4. Ponowny Reset FIFO (KLUCZOWE: aby nowa konfiguracja 'siadła' od zera)
+    mpu6050_reset_fifo(&mpu);
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    // 5. Dopiero teraz włączamy zbieranie
+    ESP_LOGI(TAG, "Włączam FIFO na 200ms...");
     mpu6050_set_fifo_enable(&mpu, true);
-    vTaskDelay(pdMS_TO_TICKS(200)); 
+    vTaskDelay(pdMS_TO_TICKS(200));
+
     mpu6050_set_fifo_enable(&mpu, false); // Stop zbierania
+    vTaskDelay(pdMS_TO_TICKS(10)); // Krótka pauza przed odczytem
 
     uint16_t count;
     mpu6050_get_fifo_count(&mpu, &count);
     ESP_LOGI(TAG, "Zebrano %d bajtów w FIFO (Max 1024).", count);
 
     if(count > 0 && count < 1024) { // Dodatkowe zabezpieczenie
+        // Sprawdzamy czy liczba bajtów jest podzielna przez 2 (każda próbka to 2 bajty: Temp_H, Temp_L)
+        if (count % 2 != 0) {
+            ESP_LOGW(TAG, "Uwaga: Liczba bajtów (%d) nie jest podzielna przez 2! Możliwe uszkodzenie danych.", count);
+        }
+        
         uint8_t buffer[32] = {0}; // Zerujemy bufor na starcie
         
-        // Czytamy pierwsze 16 bajtów (czyli 4 próbki po 4 bajty)
-        esp_err_t ret = mpu6050_read_fifo(&mpu, buffer, 16);
+        // Czytamy pierwsze 16 bajtów (czyli 8 próbek po 2 bajty) lub mniej jeśli count < 16
+        size_t bytes_to_read = (count < 16) ? count : 16;
+        esp_err_t ret = mpu6050_read_fifo(&mpu, buffer, bytes_to_read);
         
         if (ret == ESP_OK) {
             ESP_LOGI(TAG, "--- ODCZYT DANYCH (HEX) ---");
-            // Każda próbka to 4 bajty: [Temp_H, Temp_L, GyroZ_H, GyroZ_L]
-            for(int i=0; i<4; i++) {
-                int base = i*4;
-                int16_t raw_temp = (buffer[base] << 8) | buffer[base+1];
-                int16_t raw_gyro = (buffer[base+2] << 8) | buffer[base+3];
+            ESP_LOGI(TAG, "Odczytano %zu bajtów z FIFO", bytes_to_read);
+            
+            // Każda próbka to 2 bajty: [Temp_H, Temp_L]
+            int num_samples = bytes_to_read / 2;
+            for(int i=0; i<num_samples; i++) {
+                int base = i*2;
+                int16_t raw_temp = (int16_t)((buffer[base] << 8) | buffer[base+1]);
+                
                 // Konwersja przy użyciu funkcji biblioteki
                 float temp_c = mpu6050_temp_to_celsius(raw_temp);
-                float gyro_dps = mpu6050_gyro_to_dps(&mpu, raw_gyro);
                 
-                ESP_LOGI(TAG, "Próbka %d: %02X %02X | %02X %02X => Temp: %.1f C (raw %d), GyroZ: %.2f dps (raw %d)", 
+                ESP_LOGI(TAG, "Próbka %d: %02X %02X => Temp: %.1f C (raw %d)", 
                          i+1, 
-                         buffer[base], buffer[base+1], 
-                         buffer[base+2], buffer[base+3],
-                         temp_c, raw_temp,
-                         gyro_dps, raw_gyro);
+                         buffer[base], buffer[base+1],
+                         temp_c, raw_temp);
             }
+            
         } else {
             ESP_LOGE(TAG, "Błąd odczytu I2C z FIFO!");
         }

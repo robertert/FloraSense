@@ -188,29 +188,6 @@ esp_err_t mpu6050_init(const mpu6050_config_t *config, mpu6050_handle_t *handle)
  */
 esp_err_t mpu6050_deinit(mpu6050_handle_t *handle);
 
-/**
- * @brief Set clock source
- * 
- * Configures the clock source in PWR_MGMT_1 register (0x6B, bits 2:0).
- * Recommended: MPU6050_CLK_PLL_X_GYRO
- * 
- * @param handle Pointer to handle structure
- * @param clk_src Clock source selection
- * @return esp_err_t ESP_OK on success
- */
-esp_err_t mpu6050_set_clock_source(mpu6050_handle_t *handle, mpu6050_clock_source_t clk_src);
-
-/**
- * @brief Set sample rate divider
- * 
- * Configures SMPLRT_DIV register (0x19). Sample rate = 1kHz / (1 + divider).
- * 
- * @param handle Pointer to handle structure
- * @param divider Sample rate divider (0-255)
- * @return esp_err_t ESP_OK on success
- */
-esp_err_t mpu6050_set_sample_rate_divider(mpu6050_handle_t *handle, uint8_t divider);
-
 /* ============================================================================
  * Core Sensing & Conversion Functions
  * ============================================================================ */

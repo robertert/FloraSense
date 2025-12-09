@@ -35,7 +35,7 @@ To jest sterownik (komponent) dla układu **MPU-6050** (akcelerometr + żyroskop
 | **GND**     | GND              | Masa                                             |
 | **SCL**     | GPIO 22          | Linia zegarowa I2C                               |
 | **SDA**     | GPIO 21          | Linia danych I2C                                 |
-| **AD0**     | GND              | Adres I2C ustawiony programowo na **0x70**       |
+| **AD0**     | GND              | Adres I2C ustawiony programowo na **0x68**       |
 | **INT**     | GPIO 19 (Opcja)  | Pin przerwania (wymagany dla funkcji Interrupts) |
 
 ---
@@ -223,36 +223,6 @@ esp_err_t mpu6050_deinit(mpu6050_handle_t *handle);
 **Opis:** Usuwa urządzenie z szyny I2C, usuwa szynę i zwalnia zasoby.  
 **Parametry:** `handle` - wskaźnik do struktury handle  
 **Zwraca:** `ESP_OK` przy sukcesie
-
----
-
-### Konfiguracja Zegara i Częstotliwości Próbkowania
-
-#### `mpu6050_set_clock_source()`
-
-```c
-esp_err_t mpu6050_set_clock_source(mpu6050_handle_t *handle, mpu6050_clock_source_t clk_src);
-```
-
-**Opis:** Ustawia źródło zegara w rejestrze PWR_MGMT_1 (0x6B, bity 2:0).  
-**Parametry:**
-
-- `handle` - wskaźnik do handle
-- `clk_src` - źródło zegara (np. `MPU6050_CLK_PLL_X_GYRO` - zalecane)
-  **Zwraca:** `ESP_OK` przy sukcesie
-
-#### `mpu6050_set_sample_rate_divider()`
-
-```c
-esp_err_t mpu6050_set_sample_rate_divider(mpu6050_handle_t *handle, uint8_t divider);
-```
-
-**Opis:** Ustawia dzielnik częstotliwości próbkowania w rejestrze SMPLRT_DIV (0x19). Częstotliwość próbkowania = Gyro Rate / (1 + divider).  
-**Parametry:**
-
-- `handle` - wskaźnik do handle
-- `divider` - wartość dzielnika (0-255)
-  **Zwraca:** `ESP_OK` przy sukcesie
 
 ---
 
