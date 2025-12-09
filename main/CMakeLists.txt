@@ -10,9 +10,17 @@ idf_component_register(
         "sensors/sensor_proximity.c"
         "sensors/sensor_soil.c"
         "sensors/sensor_temp.c"
+        "sensors/sensor_hall.c"
+        "sensors/sensor_dock.c"
+        "sensors/sensor_ir.c"
+        "sensors/hardware_test.c"
         "mqtt_client.c"
         "bmp280.c"
         "bmp280.h"
+        "mpu6050_test.c"
+        "mpu6050_test.h"
+        "mpu6050.c"
+        "mpu6050.h"
     INCLUDE_DIRS
         "." "sensors"
     REQUIRES
@@ -23,6 +31,7 @@ idf_component_register(
         freertos
         driver
         esp_driver_gpio
+        esp_driver_i2c
         esp_wifi
         lwip
         mqtt
