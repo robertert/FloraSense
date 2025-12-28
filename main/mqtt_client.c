@@ -6,49 +6,79 @@
 
 #include "esp_system.h"
 #include "nvs_flash.h"
+#include "nvs.h"
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_log.h"
 
-#include "mqtt_client.h"     // oficjalny nagłówek ESP-IDF
-#include "flora_mqtt.h"      // Twój własny nagłówek
+#include "mqtt_client.h"
+#include "flora_mqtt.h"
 
 #include "sensor_light.h"
 #include "sensor_temp.h"
 #include "sensor_soil.h"
 #include "sensor_proximity.h"
+#include "sensor_hall.h"
+#include "sensor_ir.h"
+#include "sensor_dock.h"
 #include "wifi.h"
 
 static const char *TAG = "flora-mqtt";
 
-/* ---- USTAW TO DO SWOJEJ SIECI ---- */
-#define MQTT_BROKER_URI "mqtt://172.20.10.3:1883" 
+/* ---- BROKER ---- */
+#define MQTT_BROKER_URI "mqtt://172.20.10.3:1883"
 
-/* ---- IDENTYFIKATORY UŻYTKOWNIK/URZĄDZENIE ---- */
-#define USER_ID     "user1"
-#define DEVICE_ID   "device123"
+/* ---- DYNAMICZNE ID ---- */
+static char user_id[32] = "default_user";   // ustawiane przez MQTT + NVS
+static char device_id[32] = {0};            // generowane z MAC
 
-#define PUB_INTERVAL_MS 10000   // Publikacja co 10 sekund
+#define PUB_INTERVAL_MS 10000
 
 static esp_mqtt_client_handle_t client = NULL;
 
-/* -----------------------------------------
-   Funkcja pomocnicza do publikacji danych
--------------------------------------------*/
+/* -------------------------------------------------------
+   NVS: zapis i odczyt USER_ID
+--------------------------------------------------------*/
+static void load_user_id_from_nvs()
+{
+    nvs_handle_t handle;
+    if (nvs_open("storage", NVS_READONLY, &handle) == ESP_OK) {
+        size_t size = sizeof(user_id);
+        if (nvs_get_str(handle, "user_id", user_id, &size) == ESP_OK) {
+            ESP_LOGI(TAG, "Loaded USER_ID from NVS: %s", user_id);
+        }
+        nvs_close(handle);
+    }
+}
+
+static void save_user_id_to_nvs(const char *new_id)
+{
+    nvs_handle_t handle;
+    if (nvs_open("storage", NVS_READWRITE, &handle) == ESP_OK) {
+        nvs_set_str(handle, "user_id", new_id);
+        nvs_commit(handle);
+        nvs_close(handle);
+        ESP_LOGI(TAG, "Saved USER_ID to NVS: %s", new_id);
+    }
+}
+
+/* -------------------------------------------------------
+   Publikacja danych
+--------------------------------------------------------*/
 static void publish_sensor(const char *topic_suffix, const char *payload)
 {
     char topic[128];
     snprintf(topic, sizeof(topic),
              "florasense/%s/%s/%s",
-             USER_ID, DEVICE_ID, topic_suffix);
+             user_id, device_id, topic_suffix);
 
     int msg_id = esp_mqtt_client_publish(client, topic, payload, 0, 1, 0);
     ESP_LOGI(TAG, "Published to %s | msg_id=%d | %s", topic, msg_id, payload);
 }
 
-/* -----------------------------------------
-   Handler zdarzeń MQTT (zgodny z ESP-IDF v5.5)
--------------------------------------------*/
+/* -------------------------------------------------------
+   Handler MQTT
+--------------------------------------------------------*/
 static void mqtt_event_handler_cb(void *handler_args,
                                   esp_event_base_t base,
                                   int32_t event_id,
@@ -62,21 +92,29 @@ static void mqtt_event_handler_cb(void *handler_args,
         {
             ESP_LOGI(TAG, "MQTT connected!");
 
+            /* --- SUBSKRYPCJA KOMEND --- */
             char water_cmd[128];
             char move_cmd[128];
+            char user_cfg[128];
 
             snprintf(water_cmd, sizeof(water_cmd),
-                    "florasense/%s/%s/cmd/water",
-                    USER_ID, DEVICE_ID);
+                     "florasense/%s/%s/cmd/water",
+                     user_id, device_id);
 
             snprintf(move_cmd, sizeof(move_cmd),
-                    "florasense/%s/%s/cmd/move",
-                    USER_ID, DEVICE_ID);
+                     "florasense/%s/%s/cmd/move",
+                     user_id, device_id);
+
+            snprintf(user_cfg, sizeof(user_cfg),
+                     "florasense/%s/config/user",
+                     device_id);
 
             esp_mqtt_client_subscribe(client, water_cmd, 1);
             esp_mqtt_client_subscribe(client, move_cmd, 1);
+            esp_mqtt_client_subscribe(client, user_cfg, 1);
 
-            ESP_LOGI(TAG, "Subscribed to %s & %s", water_cmd, move_cmd);
+            ESP_LOGI(TAG, "Subscribed to: %s, %s, %s",
+                     water_cmd, move_cmd, user_cfg);
         }
         break;
 
@@ -86,15 +124,30 @@ static void mqtt_event_handler_cb(void *handler_args,
                      event->topic_len, event->topic,
                      event->data_len, event->data);
 
-            if (strstr(event->topic, "/cmd/water"))
+            /* --- USTAWIANIE USER_ID PRZEZ MQTT --- */
+            if (strstr(event->topic, "/config/user"))
             {
-                ESP_LOGI(TAG, "WATER_CMD received: %.*s", event->data_len, event->data);
-                // TODO: GPIO dla pompy
+                char new_user[32] = {0};
+                memcpy(new_user, event->data, event->data_len);
+
+                ESP_LOGI(TAG, "Received USER_ID config: %s", new_user);
+
+                save_user_id_to_nvs(new_user);
+                strncpy(user_id, new_user, sizeof(user_id));
             }
+
+            /* --- KOMENDA WATER --- */
+            else if (strstr(event->topic, "/cmd/water"))
+            {
+                ESP_LOGI(TAG, "WATER_CMD received: %.*s",
+                         event->data_len, event->data);
+            }
+
+            /* --- KOMENDA MOVE --- */
             else if (strstr(event->topic, "/cmd/move"))
             {
-                ESP_LOGI(TAG, "MOVE_CMD received: %.*s", event->data_len, event->data);
-                // TODO: sterowanie silnikiem
+                ESP_LOGI(TAG, "MOVE_CMD received: %.*s",
+                         event->data_len, event->data);
             }
         }
         break;
@@ -104,11 +157,24 @@ static void mqtt_event_handler_cb(void *handler_args,
     }
 }
 
-/* -----------------------------------------
+/* -------------------------------------------------------
    Start klienta MQTT
--------------------------------------------*/
+--------------------------------------------------------*/
 void mqtt_app_start(void)
 {
+    /* --- GENEROWANIE DEVICE_ID Z MAC --- */
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+
+    snprintf(device_id, sizeof(device_id),
+             "%02X%02X%02X%02X%02X%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+    ESP_LOGI(TAG, "Generated DEVICE_ID: %s", device_id);
+
+    /* --- ŁADOWANIE USER_ID Z NVS --- */
+    load_user_id_from_nvs();
+
     esp_mqtt_client_config_t cfg = {
         .broker.address.uri = MQTT_BROKER_URI,
     };
@@ -122,35 +188,75 @@ void mqtt_app_start(void)
     esp_mqtt_client_start(client);
 }
 
-/* -----------------------------------------
-   Task publikujący dane sensorów
--------------------------------------------*/
+/* -------------------------------------------------------
+   Task publikujący dane
+--------------------------------------------------------*/
 void mqtt_publish_task(void *pvParameters)
 {
     while (1)
     {
-        // Jeśli nie masz jeszcze implementacji czujników, użyj stałych
-        float lux  = 123.4; // sensor_light_read();
-        float temp = 24.0;  // sensor_temp_read();
-        float soil = 55.0;  // sensor_soil_read();
-        float prox = 6.0;   // sensor_proximity_read();
-        int batt   = 75;    // mock
-
         char payload[128];
 
-        snprintf(payload, sizeof(payload), "{\"value\": %.2f, \"unit\": \"lux\"}", lux);
-        publish_sensor("sensor/light", payload);
+        /* --- ŚWIATŁO --- */
+        sensor_light_reading_t light;
+        if (sensor_light_read(&light) == ESP_OK) {
+            snprintf(payload, sizeof(payload),
+                     "{\"value\": %.2f, \"unit\": \"lux\"}", light.lux);
+            publish_sensor("sensor/light", payload);
+        }
 
-        snprintf(payload, sizeof(payload), "{\"value\": %.2f, \"unit\": \"C\"}", temp);
-        publish_sensor("sensor/temp", payload);
+        /* --- TEMPERATURA + WILGOTNOŚĆ --- */
+        sensor_temp_reading_t temp;
+        if (sensor_temp_read(&temp) == ESP_OK) {
+            snprintf(payload, sizeof(payload),
+                     "{\"value\": %.2f, \"unit\": \"C\"}", temp.temperature_c);
+            publish_sensor("sensor/temp", payload);
 
-        snprintf(payload, sizeof(payload), "{\"value\": %.2f, \"unit\": \"%%\"}", soil);
-        publish_sensor("sensor/soil", payload);
+            snprintf(payload, sizeof(payload),
+                     "{\"value\": %.2f, \"unit\": \"%%\"}", temp.humidity_percent);
+            publish_sensor("sensor/humidity", payload);
+        }
 
-        snprintf(payload, sizeof(payload), "{\"value\": %.2f, \"unit\": \"raw\"}", prox);
-        publish_sensor("sensor/proximity", payload);
+        /* --- GLEBA --- */
+        sensor_soil_reading_t soil;
+        if (sensor_soil_read(&soil) == ESP_OK) {
+            snprintf(payload, sizeof(payload),
+                     "{\"value\": %.2f, \"unit\": \"%%\", \"mv\": %d}",
+                     soil.moisture_percent, soil.millivolts);
+            publish_sensor("sensor/soil", payload);
+        }
 
-        snprintf(payload, sizeof(payload), "{\"value\": %d, \"unit\": \"%%\"}", batt);
+        /* --- DOCK --- */
+        if (sensor_dock_is_initialized()) {
+            int dock_state = sensor_dock_read();
+            snprintf(payload, sizeof(payload),
+                     "{\"state\": \"%s\"}",
+                     dock_state ? "connected" : "disconnected");
+            publish_sensor("state/dock", payload);
+        }
+
+        /* --- HALL --- */
+        if (sensor_hall_is_initialized()) {
+            int hall_state = sensor_hall_read();
+            snprintf(payload, sizeof(payload),
+                     "{\"magnetic\": %s}",
+                     hall_state ? "true" : "false");
+            publish_sensor("sensor/hall", payload);
+        }
+
+        /* --- IR --- */
+        if (sensor_ir_is_initialized()) {
+            int ir_state = sensor_ir_read();
+            snprintf(payload, sizeof(payload),
+                     "{\"obstacle\": %s}",
+                     ir_state ? "true" : "false");
+            publish_sensor("sensor/ir", payload);
+        }
+
+        /* --- BATERIA (mock) --- */
+        int batt = 75;
+        snprintf(payload, sizeof(payload),
+                 "{\"value\": %d, \"unit\": \"%%\"}", batt);
         publish_sensor("state/battery", payload);
 
         vTaskDelay(pdMS_TO_TICKS(PUB_INTERVAL_MS));
