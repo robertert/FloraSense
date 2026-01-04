@@ -39,6 +39,7 @@ static const char *TAG = "HARDWARE_TEST";
 // HALL_SENSOR_GPIO jest teraz obsługiwany przez sensor_hall.c
 // DOCK_SWITCH_GPIO jest teraz obsługiwany przez sensor_dock.c
 // IR_OBSTACLE_GPIO jest teraz obsługiwany przez sensor_ir.c
+#define IR_OBSTACLE_GPIO        23  // Pin dla czujnika IR w hardware_test
 
 // Konfiguracja LEDC
 // #define LEDC_TIMER              LEDC_TIMER_0
@@ -249,8 +250,8 @@ static void read_sensors(int *hall_state, int *dock_state, int *ir_state)
     }
     
     // Odczyt czujnika IR przez moduł sensor_ir
-    if (sensor_ir_is_initialized()) {
-        *ir_state = sensor_ir_read();
+    if (sensor_ir_is_initialized(IR_OBSTACLE_GPIO)) {
+        *ir_state = sensor_ir_read(IR_OBSTACLE_GPIO);
     } else {
         *ir_state = -1;  // Nie zainicjalizowany
     }

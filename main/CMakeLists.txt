@@ -7,7 +7,6 @@ idf_component_register(
         "http_client.c"
         "motor_controller.c"
         "sensors/sensor_light.c"
-        "sensors/sensor_proximity.c"
         "sensors/sensor_soil.c"
         "sensors/sensor_temp.c"
         "sensors/sensor_hall.c"
@@ -17,10 +16,10 @@ idf_component_register(
         "mqtt_client.c"
         "bmp280.c"
         "bmp280.h"
-        "mpu6050_test.c"
-        "mpu6050_test.h"
-        "mpu6050.c"
-        "mpu6050.h"
+        "mpu6050/mpu6050_test.c"
+        "mpu6050/mpu6050_test.h"
+        "mpu6050/mpu6050.c"
+        "mpu6050/mpu6050.h"
     INCLUDE_DIRS
         "." "sensors"
     REQUIRES
@@ -37,4 +36,5 @@ idf_component_register(
         lwip
         esp_adc
         mqtt
+        esp_driver_ledc
 )

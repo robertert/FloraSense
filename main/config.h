@@ -68,3 +68,16 @@
 #define BME280_I2C_ADDRESS                0x76  // GND=0x76, VCC=0x77
 #define BME280_CHIP_ID                    0x60
 #define TEMP_SENSOR_POLL_PERIOD_MS        5000
+
+// Konfiguracja sterownika silników (TB6612FNG lub podobny)
+// Silnik A
+#define MOTOR_A_PWM_GPIO                  GPIO_NUM_13  // PWMA - prędkość silnika A
+#define MOTOR_A_IN1_GPIO                  GPIO_NUM_27   // AIN1 - kierunek silnika A
+#define MOTOR_A_IN2_GPIO                  GPIO_NUM_14   // AIN2 - kierunek silnika A
+// Silnik B
+#define MOTOR_B_PWM_GPIO                  GPIO_NUM_4   // PWMB - prędkość silnika B
+#define MOTOR_B_IN1_GPIO                  GPIO_NUM_16  // BIN1 - kierunek silnika B
+#define MOTOR_B_IN2_GPIO                  GPIO_NUM_17  // BIN2 - kierunek silnika B
+// PWM
+#define MOTOR_PWM_FREQ_HZ                 5000         // Częstotliwość PWM
+#define MOTOR_PWM_RESOLUTION              LEDC_TIMER_8_BIT  // Rozdzielczość PWM (0-255)

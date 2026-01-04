@@ -46,6 +46,8 @@ static esp_err_t sensor_temp_i2c_init(void)
         return ESP_OK;
     }
 
+    // Sprawdź czy I2C jest już zainstalowany (np. przez sensor_light)
+    // Próba odczytu konfiguracji - jeśli zwróci ESP_ERR_INVALID_STATE, znaczy że nie jest zainstalowany
     i2c_config_t conf = {
         .mode = I2C_MODE_MASTER,
         .sda_io_num = TEMP_SENSOR_I2C_SDA_GPIO,
@@ -56,19 +58,29 @@ static esp_err_t sensor_temp_i2c_init(void)
         .clk_flags = 0,
     };
 
-    ESP_RETURN_ON_ERROR(i2c_param_config(TEMP_SENSOR_I2C_PORT, &conf),
-                        TAG, "Nie udało się skonfigurować I2C");
-
+    // Najpierw spróbuj zainstalować sterownik
     esp_err_t err = i2c_driver_install(TEMP_SENSOR_I2C_PORT, conf.mode, 0, 0, 0);
-    if (err == ESP_ERR_INVALID_STATE) {
-        // I2C już zainicjalizowany (np. przez inny moduł) - to OK
-        ESP_LOGI(TAG, "I2C już zainicjalizowany, używam istniejącej konfiguracji");
+    if (err == ESP_ERR_INVALID_STATE || err == ESP_FAIL) {
+        // I2C już zainicjalizowany (np. przez sensor_light) - to OK, używamy istniejącej konfiguracji
+        // ESP_FAIL może również oznaczać że sterownik jest już zainstalowany
+        ESP_LOGI(TAG, "I2C Port %d już zainicjalizowany przez inny moduł (err=%s), używam istniejącej konfiguracji", 
+                 TEMP_SENSOR_I2C_PORT, esp_err_to_name(err));
+        i2c_initialized = true;
+        return ESP_OK;
     } else if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Błąd instalacji sterownika I2C: %s (0x%x)", esp_err_to_name(err), err);
         ESP_RETURN_ON_ERROR(err, TAG, "Nie udało się zainstalować sterownika I2C");
-    } else {
-        ESP_LOGI(TAG, "I2C zainicjalizowany: SDA=GPIO%d, SCL=GPIO%d, freq=%d Hz", 
-                 TEMP_SENSOR_I2C_SDA_GPIO, TEMP_SENSOR_I2C_SCL_GPIO, TEMP_SENSOR_I2C_FREQ_HZ);
     }
+    
+    // Jeśli udało się zainstalować, skonfiguruj parametry
+    err = i2c_param_config(TEMP_SENSOR_I2C_PORT, &conf);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Błąd konfiguracji I2C: %s (0x%x)", esp_err_to_name(err), err);
+        ESP_RETURN_ON_ERROR(err, TAG, "Nie udało się skonfigurować I2C");
+    }
+
+    ESP_LOGI(TAG, "I2C zainicjalizowany: SDA=GPIO%d, SCL=GPIO%d, freq=%d Hz", 
+             TEMP_SENSOR_I2C_SDA_GPIO, TEMP_SENSOR_I2C_SCL_GPIO, TEMP_SENSOR_I2C_FREQ_HZ);
 
     i2c_initialized = true;
     return ESP_OK;
@@ -112,15 +124,15 @@ static esp_err_t bme280_read_reg(uint8_t reg, uint8_t *value, size_t len)
 // Funkcja do skanowania adresów I2C i znalezienia BME280
 static esp_err_t bme280_scan_address(uint8_t *found_address)
 {
-    uint8_t test_addresses[] = {0x76, 0x77}; // Oba możliwe adresy BME280
+    uint8_t test_addresses[] = {0x76, 0x77};
     uint8_t chip_id_reg = BME280_REG_CHIP_ID;
     uint8_t chip_id = 0;
     
-    ESP_LOGI(TAG, "Skanowanie adresów I2C w poszukiwaniu BME280...");
+    ESP_LOGI(TAG, "Skanowanie %zu adresów I2C w poszukiwaniu BME280...", sizeof(test_addresses));
     
-    for (int i = 0; i < sizeof(test_addresses); i++) {
+    for (size_t i = 0; i < sizeof(test_addresses); i++) {
         uint8_t addr = test_addresses[i];
-        ESP_LOGI(TAG, "Testuję adres 0x%02X...", addr);
+        ESP_LOGI(TAG, "[%zu/%zu] Testuję adres 0x%02X...", i+1, sizeof(test_addresses), addr);
         
         // Spróbuj odczytać Chip ID
         esp_err_t ret = i2c_master_write_read_device(
@@ -132,20 +144,29 @@ static esp_err_t bme280_scan_address(uint8_t *found_address)
             1,
             pdMS_TO_TICKS(500));
         
-        if (ret == ESP_OK && chip_id == BME280_CHIP_ID) {
-            ESP_LOGI(TAG, "✓ Znaleziono BME280 na adresie 0x%02X (Chip ID: 0x%02X)", addr, chip_id);
-            *found_address = addr;
-            return ESP_OK;
-        } else if (ret == ESP_OK) {
-            ESP_LOGW(TAG, "  Adres 0x%02X odpowiada, ale Chip ID=0x%02X (oczekiwano 0x%02X)", 
-                     addr, chip_id, BME280_CHIP_ID);
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "  ✓ Adres 0x%02X odpowiada! Chip ID=0x%02X", addr, chip_id);
+            if (chip_id == BME280_CHIP_ID) {
+                ESP_LOGI(TAG, "  ✓✓✓ ZNALEZIONO BME280 na adresie 0x%02X! ✓✓✓", addr);
+                *found_address = addr;
+                return ESP_OK;
+            } else {
+                ESP_LOGW(TAG, "  ⚠ Chip ID=0x%02X nie pasuje do BME280 (oczekiwano 0x%02X)", 
+                         chip_id, BME280_CHIP_ID);
+            }
         } else {
-            ESP_LOGD(TAG, "  Adres 0x%02X nie odpowiada: %s", addr, esp_err_to_name(ret));
+            ESP_LOGD(TAG, "  ✗ Adres 0x%02X nie odpowiada: %s", addr, esp_err_to_name(ret));
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(50)); // Dłuższy delay między próbami
     }
     
-    ESP_LOGE(TAG, "Nie znaleziono BME280 na żadnym z testowanych adresów (0x76, 0x77)");
+    ESP_LOGE(TAG, "Nie znaleziono BME280 na żadnym z %zu testowanych adresów", sizeof(test_addresses));
+    ESP_LOGE(TAG, "Możliwe przyczyny:");
+    ESP_LOGE(TAG, "  1. Czujnik nie jest podłączony lub nie ma zasilania");
+    ESP_LOGE(TAG, "  2. Błędne połączenia I2C (SDA=GPIO%d, SCL=GPIO%d)", 
+             TEMP_SENSOR_I2C_SDA_GPIO, TEMP_SENSOR_I2C_SCL_GPIO);
+    ESP_LOGE(TAG, "  3. Brak rezystorów pull-up (4.7kΩ na SDA i SCL do 3.3V)");
+    ESP_LOGE(TAG, "  4. Konflikt z innym urządzeniem I2C na tej samej szynie");
     return ESP_ERR_NOT_FOUND;
 }
 
@@ -190,6 +211,12 @@ static float bme280_compensate_temp(int32_t adc_T)
 
 static float bme280_compensate_humidity(int32_t adc_H, int32_t t_fine)
 {
+    // Sprawdź czy kalibracja wilgotności jest prawidłowa
+    if (calib_data.dig_H1 == 0 && calib_data.dig_H2 == 0) {
+        ESP_LOGW(TAG, "UWAGA: Kalibracja wilgotności jest zerowa - możliwe że to BMP280, nie BME280!");
+        return 0.0f;
+    }
+    
     int32_t v_x1_u32r;
     v_x1_u32r = (t_fine - ((int32_t)76800));
     v_x1_u32r = (((((adc_H << 14) - (((int32_t)calib_data.dig_H4) << 20) -
@@ -241,11 +268,22 @@ esp_err_t sensor_temp_init(void)
     }
     
     ESP_LOGI(TAG, "✓ BME280 potwierdzony (Chip ID: 0x%02X)", chip_id);
+    
+    // Sprawdź czy to rzeczywiście BME280 (0x60), a nie BMP280 (0x58)
+    if (chip_id == 0x58) {
+        ESP_LOGW(TAG, "UWAGA: Chip ID 0x58 = BMP280 (bez wilgotności)! BME280 powinien mieć Chip ID 0x60");
+    }
 
     // Odczytaj kalibrację
     ESP_RETURN_ON_ERROR(bme280_read_calibration(), TAG, "Błąd odczytu kalibracji");
+    
+    // Logowanie współczynników kalibracyjnych wilgotności
+    ESP_LOGI(TAG, "Kalibracja wilgotności: H1=%u, H2=%d, H3=%d, H4=%d, H5=%d, H6=%d",
+             calib_data.dig_H1, calib_data.dig_H2, calib_data.dig_H3,
+             calib_data.dig_H4, calib_data.dig_H5, calib_data.dig_H6);
 
     // Konfiguracja: oversampling x1, normal mode
+    // WAŻNE: CTRL_HUM musi być zapisany PRZED CTRL_MEAS!
     ESP_RETURN_ON_ERROR(bme280_write_reg(BME280_REG_CTRL_HUM, 0x01),
                         TAG, "Błąd konfiguracji CTRL_HUM");
     
@@ -256,6 +294,9 @@ esp_err_t sensor_temp_init(void)
     uint8_t config = (0x00 << 5) | (0x00 << 2) | 0x00; // standby 0.5ms, filter off
     ESP_RETURN_ON_ERROR(bme280_write_reg(BME280_REG_CONFIG, config),
                         TAG, "Błąd konfiguracji CONFIG");
+    
+    // Poczekaj na pierwszy pomiar (standby time + measurement time)
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     sensor_initialized = true;
     ESP_LOGI(TAG, "Czujnik BME280 gotowy (adres 0x%02X)", bme280_actual_address);
@@ -276,8 +317,17 @@ esp_err_t sensor_temp_read(sensor_temp_reading_t *reading)
     // Parsuj temperaturę (20-bit)
     int32_t adc_T = ((int32_t)data[3] << 12) | ((int32_t)data[4] << 4) | ((int32_t)data[5] >> 4);
     
-    // Parsuj wilgotność (16-bit)
+    // Parsuj wilgotność (16-bit) - odczyt z rejestrów 0xFD i 0xFE
     int32_t adc_H = ((int32_t)data[6] << 8) | (int32_t)data[7];
+    
+    // Logowanie surowych danych (tylko przy pierwszym odczycie lub gdy wilgotność = 0)
+    static bool first_read = true;
+    if (first_read || adc_H == 0) {
+        ESP_LOGI(TAG, "Surowe dane: press=[0x%02X 0x%02X 0x%02X], temp=[0x%02X 0x%02X 0x%02X], hum=[0x%02X 0x%02X]",
+                 data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+        ESP_LOGI(TAG, "Parsowane: adc_T=%ld, adc_H=%ld", adc_T, adc_H);
+        first_read = false;
+    }
 
     // Oblicz t_fine dla kompensacji
     int32_t var1, var2;
@@ -289,9 +339,49 @@ esp_err_t sensor_temp_read(sensor_temp_reading_t *reading)
     int32_t t_fine = var1 + var2;
 
     reading->temperature_c = bme280_compensate_temp(adc_T);
-    reading->humidity_percent = bme280_compensate_humidity(adc_H, t_fine);
+    
+    // Kompensacja wilgotności - sprawdź czy adc_H jest prawidłowe
+    if (adc_H == 0 || adc_H == 0xFFFF || adc_H == 0x8000) {
+        ESP_LOGW(TAG, "Nieprawidłowa wartość surowej wilgotności: adc_H=%ld (0x%04lX)", adc_H, adc_H);
+        reading->humidity_percent = 0.0f;
+    } else {
+        reading->humidity_percent = bme280_compensate_humidity(adc_H, t_fine);
+    }
+    
     reading->raw_temp = adc_T;
     reading->raw_humidity = adc_H;
+    
+    // Logowanie jeśli wilgotność = 0
+    if (reading->humidity_percent == 0.0f && adc_H != 0) {
+        ESP_LOGW(TAG, "Wilgotność = 0%%! adc_H=%ld, t_fine=%ld", adc_H, t_fine);
+    }
 
     return ESP_OK;
+}
+
+void sensor_temp_task(void *param)
+{
+    // Inicjalizacja czujnika BME280
+    esp_err_t ret = sensor_temp_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Nie udało się zainicjalizować czujnika BME280: %s", esp_err_to_name(ret));
+        vTaskDelete(NULL);
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Task czujnika temperatury BME280 uruchomiony");
+    
+    sensor_temp_reading_t reading;
+    
+    // Odczyt wartości co 2 sekundy
+    while (1) {
+        ret = sensor_temp_read(&reading);
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "Temperatura: %.2f°C, Wilgotność: %.2f%%", 
+                     reading.temperature_c, reading.humidity_percent);
+        } else {
+            ESP_LOGW(TAG, "Błąd odczytu czujnika BME280: %s", esp_err_to_name(ret));
+        }
+        vTaskDelay(pdMS_TO_TICKS(2000)); // 2 sekundy
+    }
 }
