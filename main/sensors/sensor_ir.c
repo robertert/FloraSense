@@ -73,7 +73,7 @@ int sensor_ir_read(gpio_num_t pin)
         return -1;
     }
     
-    return gpio_get_level(pin);
+    return !gpio_get_level(pin);
 }
 
 bool sensor_ir_is_initialized(gpio_num_t pin)

@@ -259,3 +259,57 @@ bool motor_controller_is_initialized(void)
 {
     return initialized;
 }
+
+/**
+ * @brief Przejeżdża określoną odległość w danym kierunku
+ * 
+ * Kalibracja: ustaw MOTOR_CM_PER_SECOND w config.h na podstawie testów
+ * 
+ * @param direction Kierunek: "forward", "backward", "left", "right"
+ * @param distance_cm Odległość w centymetrach
+ * @param speed Prędkość silników (0-255), domyślnie 128
+ * @return ESP_OK jeśli sukces
+ */
+esp_err_t motor_controller_move_distance(const char *direction, float distance_cm, int16_t speed)
+{
+    if (!initialized) {
+        ESP_LOGE(TAG, "Sterownik silników nie jest zainicjalizowany");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (distance_cm <= 0) {
+        ESP_LOGW(TAG, "Nieprawidłowa odległość: %.2f cm", distance_cm);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Kalibracja: cm/sekunda przy danej prędkości
+    // Wartość z config.h - użytkownik powinien to skalibrować na podstawie testów
+    const float cm_per_second = MOTOR_CM_PER_SECOND_128;
+    
+    // Oblicz czas jazdy w milisekundach
+    float time_seconds = distance_cm / cm_per_second;
+    uint32_t time_ms = (uint32_t)(time_seconds * 1000.0f);
+    
+    ESP_LOGI(TAG, "Przejeżdżanie %.2f cm w kierunku '%s' (prędkość=%d, czas=%lu ms, kalibracja=%.2f cm/s)",
+             distance_cm, direction, speed, time_ms, cm_per_second);
+
+    // Ustaw kierunek i prędkość
+    if (strcmp(direction, "forward") == 0 || strcmp(direction, "przód") == 0) {
+        motor_controller_set_speeds(speed, speed);
+    } else if (strcmp(direction, "backward") == 0 || strcmp(direction, "wstecz") == 0 || strcmp(direction, "tył") == 0) {
+        motor_controller_set_speeds(-speed, -speed);
+    }
+    else {
+        ESP_LOGE(TAG, "Nieznany kierunek: %s", direction);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Czekaj przez obliczony czas
+    vTaskDelay(pdMS_TO_TICKS(time_ms));
+
+    // Zatrzymaj silniki
+    motor_controller_stop();
+    
+    ESP_LOGI(TAG, "Przejazd zakończony");
+    return ESP_OK;
+}

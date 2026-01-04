@@ -51,3 +51,13 @@ esp_err_t motor_controller_set_speeds(int16_t speed_a, int16_t speed_b);
  * @return true jeśli zainicjalizowany, false w przeciwnym razie
  */
 bool motor_controller_is_initialized(void);
+
+/**
+ * @brief Przejeżdża określoną odległość w danym kierunku
+ * 
+ * @param direction Kierunek: "forward", "backward", "left", "right"
+ * @param distance_cm Odległość w centymetrach
+ * @param speed Prędkość silników (0-255), domyślnie 128
+ * @return ESP_OK jeśli sukces
+ */
+esp_err_t motor_controller_move_distance(const char *direction, float distance_cm, int16_t speed);

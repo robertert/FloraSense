@@ -74,6 +74,10 @@
 #define MOTOR_A_PWM_GPIO                  GPIO_NUM_13  // PWMA - prędkość silnika A
 #define MOTOR_A_IN1_GPIO                  GPIO_NUM_27   // AIN1 - kierunek silnika A
 #define MOTOR_A_IN2_GPIO                  GPIO_NUM_14   // AIN2 - kierunek silnika A
+
+// Kalibracja silników (do ustawienia na podstawie testów)
+// Ile centymetrów robot przejeżdża w ciągu 1 sekundy przy prędkości 128
+#define MOTOR_CM_PER_SECOND_128           24.4f  // TODO: Skalibrować!
 // Silnik B
 #define MOTOR_B_PWM_GPIO                  GPIO_NUM_4   // PWMB - prędkość silnika B
 #define MOTOR_B_IN1_GPIO                  GPIO_NUM_16  // BIN1 - kierunek silnika B

@@ -284,9 +284,18 @@ static void motor_controller_task(void *param)
 void app_main(void)
 {
     nvs_init();
-    //wifi_init();                 
-    //mqtt_app_start();
-    //xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 4096, NULL, 5, NULL);
+    
+    // Inicjalizacja WiFi (w osobnym tasku)
+    xTaskCreate(wifi_init_task, "wifi_init_task", 4096, NULL, 5, NULL);
+    
+    // Poczekaj chwilę na inicjalizację WiFi przed uruchomieniem MQTT
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    
+    // Inicjalizacja i start MQTT
+    mqtt_app_start();
+    
+    // Task publikujący dane z czujników przez MQTT
+    xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 4096, NULL, 5, NULL);
     /*
     sensor_temp_init();
     sensor_temp_reading_t reading;
@@ -317,6 +326,7 @@ void app_main(void)
     //mpu6050_test_start();
 
     //xTaskCreate(soil_sensor_task, "soil_sensor_task", 4096, NULL, 5, NULL);
+    /*
     xTaskCreate(sensor_temp_task, "sensor_temp_task", 4096, NULL, 5, NULL);
 
     // Utworzenie tasków dla czujników światła VEML7700
@@ -346,5 +356,7 @@ void app_main(void)
     //xTaskCreate(sensor_temp_task, "sensor_temp_task", 4096, NULL, 5, NULL);
     
     // Utworzenie taska dla sterownika silników
+    
     xTaskCreate(motor_controller_task, "motor_controller_task", 4096, NULL, 5, NULL);
+    */
 }

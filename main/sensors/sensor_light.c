@@ -92,7 +92,7 @@ static esp_err_t sensor_light_i2c_init(const sensor_light_config_t *config)
                  config->i2c_port, esp_err_to_name(err), err);
         ESP_RETURN_ON_ERROR(err, TAG, "Nie udało się zainstalować sterownika I2C");
     }
-    
+
     // Jeśli udało się zainstalować, skonfiguruj parametry
     err = i2c_param_config(config->i2c_port, &conf);
     if (err != ESP_OK) {
