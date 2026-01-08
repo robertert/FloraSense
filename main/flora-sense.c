@@ -31,6 +31,8 @@
 #include "sensor_dock.h"
 #include "sensor_ir.h"
 #include "motor_controller.h"
+#include "wsn_controller.h"
+#include "flora_mqtt.h"
 #include "esp_log.h"
 
 void nvs_init(void)
@@ -296,6 +298,31 @@ void app_main(void)
     
     // Task publikujący dane z czujników przez MQTT
     xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 4096, NULL, 5, NULL);
+    
+    // Poczekaj na inicjalizację czujników przed uruchomieniem WSN
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    
+    // Task monitorowania przeszkód - niezależny, najwyższy priorytet bezpieczeństwa
+    // Zatrzymuje silniki gdy wykryje przeszkodę, niezależnie od sterowania MQTT lub WSN
+    // Sprawdza oba czujniki IR (przód i tył)
+    static obstacle_monitor_config_t obstacle_config;
+    obstacle_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();  // Czujnik IR 2 z przodu
+    obstacle_config.ir_sensor_back = mqtt_get_ir_sensor_pin_1();   // Czujnik IR 1 z tyłu
+    xTaskCreate(obstacle_monitor_task, "obstacle_monitor_task", 2048, 
+                &obstacle_config, 10, NULL);  // Priorytet 10 - najwyższy
+    
+    // Task kontrolera WSN - autonomiczne poruszanie się w kierunku światła
+    // Uwaga: czujniki są fizycznie zamontowane odwrotnie niż w konfiguracji
+    static wsn_controller_config_t wsn_config;
+    wsn_config.light_sensor_1 = mqtt_get_light_config_2();  // Fizycznie z przodu
+    wsn_config.light_sensor_2 = mqtt_get_light_config_1();  // Fizycznie z tyłu
+    wsn_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();  // Czujnik IR 2 z przodu
+    wsn_config.base_speed = 150;                              // Bazowa prędkość silników
+    wsn_config.light_threshold_lux = 10.0f;                   // Próg różnicy światła (10 lux)
+    wsn_config.check_interval_ms = 200;                       // Sprawdzanie co 200ms
+    wsn_config.move_distance_cm = 5.0f;                       // Przesunięcie o 5cm
+    wsn_config.wait_after_threshold_ms = 5 * 60 * 1000;      // Czekaj 5 minut po osiągnięciu progu
+    xTaskCreate(wsn_controller_task, "wsn_controller_task", 4096, &wsn_config, 5, NULL);
     /*
     sensor_temp_init();
     sensor_temp_reading_t reading;

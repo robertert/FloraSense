@@ -24,6 +24,30 @@
 #define SOIL_SENSOR_MV_AT_DRY           3000
 #define SOIL_SENSOR_MV_AT_SATURATED     1100
 
+// Konfiguracja monitorowania baterii (ADC)
+// UWAGA: Jeśli bateria jest podłączona przez dzielnik napięcia, 
+// ustaw BATTERY_VOLTAGE_DIVIDER na odpowiednią wartość (np. 2.0 dla dzielnika 1:1)
+// Jeśli bateria jest podłączona bezpośrednio, ustaw na 1.0
+#define BATTERY_ADC_UNIT                ADC_UNIT_1
+#define BATTERY_ADC_CHANNEL              ADC_CHANNEL_7   // GPIO35 (można zmienić na inny wolny pin ADC)
+#define BATTERY_ADC_ATTEN                ADC_ATTEN_DB_12  // Max 3.3V na ADC
+#define BATTERY_ADC_BITWIDTH             ADC_BITWIDTH_12
+#define BATTERY_SAMPLE_COUNT             32
+#define BATTERY_VOLTAGE_DIVIDER          3.0f  // Współczynnik dzielnika napięcia (3.0 dla dzielnika 1:3)
+
+// Kalibracja mapowania napięcia baterii (mV)
+// Dla LiPo 3.7V: pełna 4.2V (4200mV), pusta 3.0V (3000mV)
+// Dla LiPo 7.4V: pełna 8.4V (8400mV), pusta 6.0V (6000mV)
+// UWAGA: Te wartości są PRZED uwzględnieniem dzielnika napięcia!
+// Kod automatycznie przeliczy rzeczywiste napięcie baterii mnożąc odczyt ADC przez BATTERY_VOLTAGE_DIVIDER
+#define BATTERY_MV_AT_FULL              8400  // Napięcie pełnej baterii 7.4V (mV) - PRZED dzielnikiem
+#define BATTERY_MV_AT_EMPTY             6000  // Napięcie pustej baterii 7.4V (mV) - PRZED dzielnikiem
+
+// Konfiguracja LED ostrzegawczego dla niskiego poziomu baterii
+#define BATTERY_LOW_LED_GPIO             GPIO_NUM_23  // GPIO dla LED (można zmienić na inny wolny pin)
+#define BATTERY_LOW_THRESHOLD_PERCENT    60.0f        // Próg niskiego poziomu baterii (w %)
+#define BATTERY_LED_BLINK_INTERVAL_MS    500          // Interwał migania LED (ms)
+
 // Konfiguracja czujnika światła (I2C, np. BH1750)
 #define LIGHT_SENSOR_I2C_PORT           I2C_NUM_0
 #define LIGHT_SENSOR_I2C_SDA_GPIO         GPIO_NUM_21

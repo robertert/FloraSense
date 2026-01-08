@@ -22,6 +22,7 @@
 #include "sensor_hall.h"
 #include "sensor_ir.h"
 #include "sensor_dock.h"
+#include "sensor_battery.h"
 #include "motor_controller.h"
 #include "wifi.h"
 #include "config.h"
@@ -62,6 +63,29 @@ static sensor_light_config_t light_config_2 = {
 // Piny dla czujników IR
 #define IR_SENSOR_PIN_1 GPIO_NUM_25
 #define IR_SENSOR_PIN_2 GPIO_NUM_26
+
+/* -------------------------------------------------------
+   Gettery dla konfiguracji czujników (dla innych modułów)
+--------------------------------------------------------*/
+sensor_light_config_t* mqtt_get_light_config_1(void)
+{
+    return &light_config_1;
+}
+
+sensor_light_config_t* mqtt_get_light_config_2(void)
+{
+    return &light_config_2;
+}
+
+gpio_num_t mqtt_get_ir_sensor_pin_1(void)
+{
+    return IR_SENSOR_PIN_1;
+}
+
+gpio_num_t mqtt_get_ir_sensor_pin_2(void)
+{
+    return IR_SENSOR_PIN_2;
+}
 
 /* -------------------------------------------------------
    NVS: zapis i odczyt USER_ID
@@ -423,6 +447,14 @@ static void mqtt_init_sensors(void)
         ESP_LOGI(TAG, "Motor controller initialized");
     }
     
+    // Inicjalizacja modułu monitorowania baterii
+    ret = sensor_battery_init();
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to initialize battery sensor: %s", esp_err_to_name(ret));
+    } else {
+        ESP_LOGI(TAG, "Battery sensor initialized");
+    }
+    
     ESP_LOGI(TAG, "All sensors initialized");
     
     // Poczekaj chwilę na stabilizację czujników
@@ -528,11 +560,20 @@ void mqtt_publish_task(void *pvParameters)
             publish_sensor("sensor/hall", payload);
         }
 
-        /* --- BATERIA (mock) --- */
-        int batt = 75;
-        snprintf(payload, sizeof(payload),
-                 "{\"value\": %d, \"unit\": \"%%\"}", batt);
-        publish_sensor("state/battery", payload);
+        /* --- BATERIA --- */
+        if (sensor_battery_is_initialized()) {
+            sensor_battery_reading_t battery;
+            if (sensor_battery_read(&battery) == ESP_OK) {
+                snprintf(payload, sizeof(payload),
+                         "{\"value\": %.1f, \"unit\": \"%%\", \"voltage\": %d, \"voltage_unit\": \"mV\"}",
+                         battery.battery_percent, battery.millivolts);
+                publish_sensor("state/battery", payload);
+            } else {
+                ESP_LOGW(TAG, "Błąd odczytu poziomu baterii");
+            }
+        } else {
+            ESP_LOGW(TAG, "Moduł baterii nie jest zainicjalizowany");
+        }
 
         vTaskDelay(pdMS_TO_TICKS(PUB_INTERVAL_MS));
     }

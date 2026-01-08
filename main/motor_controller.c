@@ -14,11 +14,18 @@
 #include "driver/ledc.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "wsn_controller.h"
 #include <string.h>
+#include <stdlib.h>  // dla abs()
 
 static const char *TAG = "MOTOR_CTRL";
 
 static bool initialized = false;
+
+// Aktualny kierunek ruchu (thread-safe)
+static volatile int16_t current_speed_a = 0;
+static volatile int16_t current_speed_b = 0;
+static portMUX_TYPE current_speed_mutex = portMUX_INITIALIZER_UNLOCKED;
 
 // Konfiguracja PWM dla silników
 #define MOTOR_A_PWM_CHANNEL    LEDC_CHANNEL_0
@@ -177,6 +184,11 @@ esp_err_t motor_a_set_speed(int16_t speed)
         return ret;
     }
 
+    // Aktualizuj aktualną prędkość (thread-safe)
+    portENTER_CRITICAL(&current_speed_mutex);
+    current_speed_a = speed;
+    portEXIT_CRITICAL(&current_speed_mutex);
+
     return ESP_OK;
 }
 
@@ -219,6 +231,13 @@ esp_err_t motor_b_set_speed(int16_t speed)
         ret = ledc_update_duty(LEDC_LOW_SPEED_MODE, MOTOR_B_PWM_CHANNEL);
     }
 
+    // Aktualizuj aktualną prędkość (thread-safe)
+    if (ret == ESP_OK) {
+        portENTER_CRITICAL(&current_speed_mutex);
+        current_speed_b = speed;
+        portEXIT_CRITICAL(&current_speed_mutex);
+    }
+
     return ret;
 }
 
@@ -240,10 +259,36 @@ esp_err_t motor_controller_stop(void)
  * 
  * @param speed_a Prędkość silnika A (-255 do 255)
  * @param speed_b Prędkość silnika B (-255 do 255)
- * @return ESP_OK jeśli sukces
+ * @return ESP_OK jeśli sukces, ESP_ERR_INVALID_STATE jeśli przeszkoda wykryta
  */
 esp_err_t motor_controller_set_speeds(int16_t speed_a, int16_t speed_b)
 {
+    // Jeśli prędkość to 0 (stop), zawsze pozwól na zatrzymanie
+    if (speed_a == 0 && speed_b == 0) {
+        esp_err_t ret_a = motor_a_set_speed(speed_a);
+        esp_err_t ret_b = motor_b_set_speed(speed_b);
+        return (ret_a == ESP_OK && ret_b == ESP_OK) ? ESP_OK : ESP_FAIL;
+    }
+    
+    // Określ kierunek na podstawie prędkości
+    // Jeśli oba silniki mają dodatnią prędkość → ruch do przodu
+    // Jeśli oba silniki mają ujemną prędkość → ruch do tyłu
+    const char *direction = NULL;
+    if (speed_a > 0 && speed_b > 0) {
+        direction = "forward";  // Ruch do przodu
+    } else if (speed_a < 0 && speed_b < 0) {
+        direction = "backward";  // Ruch do tyłu
+    }
+    // Jeśli prędkości są różne (skręcanie), sprawdź wszystkie przeszkody
+    
+    // Sprawdź flagę bezpieczeństwa przed włączeniem silników
+    if (obstacle_is_detected(direction)) {
+        ESP_LOGW(TAG, "Przeszkoda wykryta w kierunku '%s' - blokada włączenia silników", 
+                 direction ? direction : "nieznany");
+        motor_controller_stop();  // Upewnij się, że silniki są zatrzymane
+        return ESP_ERR_INVALID_STATE;
+    }
+    
     esp_err_t ret_a = motor_a_set_speed(speed_a);
     esp_err_t ret_b = motor_b_set_speed(speed_b);
     
@@ -281,6 +326,12 @@ esp_err_t motor_controller_move_distance(const char *direction, float distance_c
         ESP_LOGW(TAG, "Nieprawidłowa odległość: %.2f cm", distance_cm);
         return ESP_ERR_INVALID_ARG;
     }
+    
+    // Sprawdź flagę bezpieczeństwa przed rozpoczęciem ruchu (z uwzględnieniem kierunku)
+    if (obstacle_is_detected(direction)) {
+        ESP_LOGW(TAG, "Przeszkoda wykryta w kierunku '%s' - blokada ruchu", direction);
+        return ESP_ERR_INVALID_STATE;
+    }
 
     // Kalibracja: cm/sekunda przy danej prędkości
     // Wartość z config.h - użytkownik powinien to skalibrować na podstawie testów
@@ -295,21 +346,78 @@ esp_err_t motor_controller_move_distance(const char *direction, float distance_c
 
     // Ustaw kierunek i prędkość
     if (strcmp(direction, "forward") == 0 || strcmp(direction, "przód") == 0) {
-        motor_controller_set_speeds(speed, speed);
+        if (motor_controller_set_speeds(speed, speed) != ESP_OK) {
+            return ESP_ERR_INVALID_STATE;  // Przeszkoda wykryta
+        }
     } else if (strcmp(direction, "backward") == 0 || strcmp(direction, "wstecz") == 0 || strcmp(direction, "tył") == 0) {
-        motor_controller_set_speeds(-speed, -speed);
+        if (motor_controller_set_speeds(-speed, -speed) != ESP_OK) {
+            return ESP_ERR_INVALID_STATE;  // Przeszkoda wykryta
+        }
     }
     else {
         ESP_LOGE(TAG, "Nieznany kierunek: %s", direction);
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Czekaj przez obliczony czas
-    vTaskDelay(pdMS_TO_TICKS(time_ms));
+    // Czekaj przez obliczony czas, ale sprawdzaj przeszkody w trakcie
+    uint32_t elapsed_ms = 0;
+    uint32_t check_interval = 50;  // Sprawdzaj co 50ms
+    
+    while (elapsed_ms < time_ms) {
+        // Sprawdź czy przeszkoda pojawiła się podczas ruchu (z uwzględnieniem kierunku)
+        if (obstacle_is_detected(direction)) {
+            ESP_LOGW(TAG, "Przeszkoda wykryta podczas ruchu w kierunku '%s' - zatrzymywanie", direction);
+            motor_controller_stop();
+            return ESP_ERR_INVALID_STATE;
+        }
+        
+        uint32_t delay_time = (time_ms - elapsed_ms > check_interval) ? check_interval : (time_ms - elapsed_ms);
+        vTaskDelay(pdMS_TO_TICKS(delay_time));
+        elapsed_ms += delay_time;
+    }
 
     // Zatrzymaj silniki
     motor_controller_stop();
     
     ESP_LOGI(TAG, "Przejazd zakończony");
+    return ESP_OK;
+}
+
+/**
+ * @brief Pobiera aktualny kierunek ruchu silników
+ * 
+ * @param direction Bufor na kierunek (min. 16 znaków): "forward", "backward", "stop", "unknown"
+ * @return ESP_OK jeśli sukces
+ */
+esp_err_t motor_controller_get_current_direction(char *direction)
+{
+    if (direction == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    int16_t speed_a, speed_b;
+    
+    portENTER_CRITICAL(&current_speed_mutex);
+    speed_a = current_speed_a;
+    speed_b = current_speed_b;
+    portEXIT_CRITICAL(&current_speed_mutex);
+
+    // Określ kierunek na podstawie prędkości
+    if (speed_a == 0 && speed_b == 0) {
+        strncpy(direction, "stop", 16);
+    } else if (speed_a > 0 && speed_b > 0) {
+        strncpy(direction, "forward", 16);
+    } else if (speed_a < 0 && speed_b < 0) {
+        strncpy(direction, "backward", 16);
+    } else {
+        // Różne prędkości (skręcanie) - określ główny kierunek
+        if (abs(speed_a) > abs(speed_b)) {
+            strncpy(direction, speed_a > 0 ? "forward" : "backward", 16);
+        } else {
+            strncpy(direction, speed_b > 0 ? "forward" : "backward", 16);
+        }
+    }
+    
+    direction[15] = '\0';  // Zapewnij null terminator
     return ESP_OK;
 }

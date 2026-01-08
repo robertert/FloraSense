@@ -61,3 +61,11 @@ bool motor_controller_is_initialized(void);
  * @return ESP_OK jeśli sukces
  */
 esp_err_t motor_controller_move_distance(const char *direction, float distance_cm, int16_t speed);
+
+/**
+ * @brief Pobiera aktualny kierunek ruchu silników
+ * 
+ * @param direction Bufor na kierunek (min. 16 znaków): "forward", "backward", "stop", "unknown"
+ * @return ESP_OK jeśli sukces
+ */
+esp_err_t motor_controller_get_current_direction(char *direction);
