@@ -8,20 +8,19 @@
 #include "sensor_hall.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
+#include "config.h"
 
 static const char *TAG = "SENSOR_HALL";
-
-#define HALL_SENSOR_GPIO        18  // Wymaga pull-up
 
 static bool initialized = false;
 
 esp_err_t sensor_hall_init(void)
 {
-    // Konfiguracja Hall Sensor (GPIO 18) - z pull-up
+    // Konfiguracja Hall Sensor (GPIO DOCK_HALL_GPIO) - z pull-up
     gpio_config_t io_conf_hall = {
         .intr_type    = GPIO_INTR_DISABLE,
         .mode         = GPIO_MODE_INPUT,
-        .pin_bit_mask = (1ULL << HALL_SENSOR_GPIO),
+        .pin_bit_mask = (1ULL << DOCK_HALL_GPIO),
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .pull_up_en   = GPIO_PULLUP_ENABLE,
     };
@@ -34,7 +33,7 @@ esp_err_t sensor_hall_init(void)
     }
     
     initialized = true;
-    ESP_LOGI(TAG, "Czujnik Hall zainicjalizowany (GPIO %d)", HALL_SENSOR_GPIO);
+    ESP_LOGI(TAG, "Czujnik Hall zainicjalizowany (GPIO %d)", DOCK_HALL_GPIO);
     return ESP_OK;
 }
 
@@ -45,7 +44,7 @@ int sensor_hall_read(void)
         return -1;
     }
     
-    return gpio_get_level(HALL_SENSOR_GPIO);
+    return gpio_get_level(DOCK_HALL_GPIO);
 }
 
 bool sensor_hall_is_initialized(void)

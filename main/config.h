@@ -9,6 +9,10 @@
 #define EXAMPLE_ESP_MAXIMUM_RETRY  10000
 #define BLINK_GPIO 2
 
+// Stacja dokująca
+#define DOCK_HALL_GPIO             GPIO_NUM_32  // Wejście czujnika Halla (pull-up)
+#define DOCK_PUMP_GPIO             GPIO_NUM_25  // Wyjście sterujące MOSFET/pompą
+
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 

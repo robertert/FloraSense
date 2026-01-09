@@ -5,6 +5,7 @@ idf_component_register(
         "ble_client.c"
         "ble_server.c"
         "http_client.c"
+        "dock_control.c"
         "motor_controller.c"
         "sensors/sensor_light.c"
         "sensors/adc_shared.c"

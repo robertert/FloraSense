@@ -9,20 +9,16 @@
 
 static const char *TAG = "BLE_SERVER";
 
-#define FLORA_SERVICE_INST_ID     0
-#define FLORA_DEVICE_NAME         "FloraSense"
+#define DOCK_SERVICE_INST_ID     0
+#define DOCK_DEVICE_NAME         "FloraDock"
 
-enum flora_gatt_idx {
+enum dock_gatt_idx {
     IDX_SVC = 0,
-    IDX_CHAR_TEMP,
-    IDX_CHAR_TEMP_VAL,
-    IDX_CHAR_TEMP_CCC,
-    IDX_CHAR_SOIL,
-    IDX_CHAR_SOIL_VAL,
-    IDX_CHAR_LIGHT,
-    IDX_CHAR_LIGHT_VAL,
-    IDX_CHAR_PUMP,
-    IDX_CHAR_PUMP_VAL,
+    IDX_CHAR_HALL,
+    IDX_CHAR_HALL_VAL,
+    IDX_CHAR_HALL_CCC,
+    IDX_CHAR_WATER,
+    IDX_CHAR_WATER_VAL,
     FLORA_IDX_NB,
 };
 
@@ -31,35 +27,29 @@ static esp_gatt_if_t gatt_if_global = ESP_GATT_IF_NONE;
 static bool attr_table_ready = false;
 static bool device_connected = false;
 static uint16_t connection_id = 0xFFFF;
-static bool temp_notify_enabled = false;
-static ble_server_pump_command_cb_t pump_callback = NULL;
-static ble_server_measurements_t latest_measurements = {
-    .temperature_c = 23.5f,
-    .soil_moisture_pct = 50,
-    .light_lux = 400,
-};
+static bool hall_notify_enabled = false;
+static uint8_t hall_value[1] = {0};
+static ble_server_water_cmd_cb_t water_cmd_cb = NULL;
 
-static uint8_t temperature_value[2] = {0x00, 0x00}; // 0.01 stopnia C
-static uint8_t soil_moisture_value[2] = {50, 0x00}; // wilgotność w %
-static uint8_t light_value[2] = {0x90, 0x01};       // luks
-static uint8_t pump_state_value[1] = {0x00};
-static uint16_t temp_ccc = 0x0000;
-
-// UUIDy standardowe
 static const uint16_t primary_service_uuid = ESP_GATT_UUID_PRI_SERVICE;
 static const uint16_t character_declaration_uuid = ESP_GATT_UUID_CHAR_DECLARE;
 static const uint16_t client_char_config_uuid = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
-static const uint16_t environmental_sensing_uuid = ESP_GATT_UUID_ENVIRONMENTAL_SENSING_SVC;
-static const uint16_t temperature_char_uuid = 0x2A6E; // Temperature
-static const uint16_t soil_moisture_char_uuid = 0x2F7A; // Soil Moisture
-static const uint16_t light_char_uuid = 0x2AFB; // Illuminance
 
-static const uint8_t pump_char_uuid[ESP_UUID_LEN_128] = {
-    0x30, 0x9C, 0xAA, 0x80, 0x95, 0xD4, 0x4E, 0xCC,
-    0xB5, 0x59, 0x04, 0xD2, 0x02, 0xFA, 0x71, 0x44
+static const uint8_t dock_service_uuid[ESP_UUID_LEN_128] = {
+    0x55, 0x44, 0x33, 0x22, 0x11, 0x00, 0xFF, 0xEE,
+    0xDD, 0xCC, 0xBB, 0xAA, 0x00, 0x56, 0x34, 0x12
 };
 
-static const uint8_t char_prop_read[] = {ESP_GATT_CHAR_PROP_BIT_READ};
+static const uint8_t hall_char_uuid[ESP_UUID_LEN_128] = {
+    0xA1, 0x01, 0x00, 0x00, 0x55, 0x55, 0x44, 0x44,
+    0x33, 0x33, 0x22, 0x22, 0x11, 0x11, 0x10, 0x01
+};
+
+static const uint8_t water_char_uuid[ESP_UUID_LEN_128] = {
+    0xA1, 0x02, 0x00, 0x00, 0x55, 0x55, 0x44, 0x44,
+    0x33, 0x33, 0x22, 0x22, 0x11, 0x11, 0x10, 0x02
+};
+
 static const uint8_t char_prop_read_notify[] = {ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY};
 static const uint8_t char_prop_read_write[] = {ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_WRITE_NR};
 
@@ -72,12 +62,6 @@ static esp_ble_adv_params_t adv_params = {
     .adv_filter_policy  = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
-static uint8_t adv_service_uuid128[ESP_UUID_LEN_128] = {
-    0xFB, 0x34, 0x9B, 0x5F,
-    0x80, 0x00, 0x00, 0x80,
-    0x00, 0x10, 0x00, 0x00,
-    0x1A, 0x18, 0x00, 0x00,
-}; // 0000181a-0000-1000-8000-00805F9B34FB (Environmental Sensing)
 static esp_ble_adv_data_t adv_data = {
     .set_scan_rsp = false,
     .include_name = true,
@@ -89,24 +73,24 @@ static esp_ble_adv_data_t adv_data = {
     .p_manufacturer_data = NULL,
     .service_data_len = 0,
     .p_service_data = NULL,
-    .service_uuid_len = sizeof(adv_service_uuid128),
-    .p_service_uuid = adv_service_uuid128,
+    .service_uuid_len = sizeof(dock_service_uuid),
+    .p_service_uuid = (uint8_t *)dock_service_uuid,
     .flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
 };
 
-static const esp_gatts_attr_db_t flora_gatt_db[FLORA_IDX_NB] = {
+static const esp_gatts_attr_db_t dock_gatt_db[FLORA_IDX_NB] = {
     [IDX_SVC] = {
         .attr_control = {ESP_GATT_AUTO_RSP},
         .att_desc = {
             .uuid_length = ESP_UUID_LEN_16,
             .uuid_p = (uint8_t *)&primary_service_uuid,
             .perm = ESP_GATT_PERM_READ,
-            .max_length = sizeof(uint16_t),
-            .length = sizeof(environmental_sensing_uuid),
-            .value = (uint8_t *)&environmental_sensing_uuid,
+            .max_length = ESP_UUID_LEN_128,
+            .length = ESP_UUID_LEN_128,
+            .value = (uint8_t *)dock_service_uuid,
         },
     },
-    [IDX_CHAR_TEMP] = {
+    [IDX_CHAR_HALL] = {
         .attr_control = {ESP_GATT_AUTO_RSP},
         .att_desc = {
             .uuid_length = ESP_UUID_LEN_16,
@@ -117,18 +101,18 @@ static const esp_gatts_attr_db_t flora_gatt_db[FLORA_IDX_NB] = {
             .value = (uint8_t *)char_prop_read_notify,
         },
     },
-    [IDX_CHAR_TEMP_VAL] = {
+    [IDX_CHAR_HALL_VAL] = {
         .attr_control = {ESP_GATT_AUTO_RSP},
         .att_desc = {
-            .uuid_length = ESP_UUID_LEN_16,
-            .uuid_p = (uint8_t *)&temperature_char_uuid,
+            .uuid_length = ESP_UUID_LEN_128,
+            .uuid_p = (uint8_t *)hall_char_uuid,
             .perm = ESP_GATT_PERM_READ,
-            .max_length = sizeof(temperature_value),
-            .length = sizeof(temperature_value),
-            .value = temperature_value,
+            .max_length = sizeof(hall_value),
+            .length = sizeof(hall_value),
+            .value = hall_value,
         },
     },
-    [IDX_CHAR_TEMP_CCC] = {
+    [IDX_CHAR_HALL_CCC] = {
         .attr_control = {ESP_GATT_AUTO_RSP},
         .att_desc = {
             .uuid_length = ESP_UUID_LEN_16,
@@ -136,54 +120,10 @@ static const esp_gatts_attr_db_t flora_gatt_db[FLORA_IDX_NB] = {
             .perm = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
             .max_length = sizeof(uint16_t),
             .length = sizeof(uint16_t),
-            .value = (uint8_t *)&temp_ccc,
+            .value = (uint8_t[]){0x00, 0x00},
         },
     },
-    [IDX_CHAR_SOIL] = {
-        .attr_control = {ESP_GATT_AUTO_RSP},
-        .att_desc = {
-            .uuid_length = ESP_UUID_LEN_16,
-            .uuid_p = (uint8_t *)&character_declaration_uuid,
-            .perm = ESP_GATT_PERM_READ,
-            .max_length = sizeof(uint8_t),
-            .length = sizeof(uint8_t),
-            .value = (uint8_t *)char_prop_read,
-        },
-    },
-    [IDX_CHAR_SOIL_VAL] = {
-        .attr_control = {ESP_GATT_AUTO_RSP},
-        .att_desc = {
-            .uuid_length = ESP_UUID_LEN_16,
-            .uuid_p = (uint8_t *)&soil_moisture_char_uuid,
-            .perm = ESP_GATT_PERM_READ,
-            .max_length = sizeof(soil_moisture_value),
-            .length = sizeof(soil_moisture_value),
-            .value = soil_moisture_value,
-        },
-    },
-    [IDX_CHAR_LIGHT] = {
-        .attr_control = {ESP_GATT_AUTO_RSP},
-        .att_desc = {
-            .uuid_length = ESP_UUID_LEN_16,
-            .uuid_p = (uint8_t *)&character_declaration_uuid,
-            .perm = ESP_GATT_PERM_READ,
-            .max_length = sizeof(uint8_t),
-            .length = sizeof(uint8_t),
-            .value = (uint8_t *)char_prop_read,
-        },
-    },
-    [IDX_CHAR_LIGHT_VAL] = {
-        .attr_control = {ESP_GATT_AUTO_RSP},
-        .att_desc = {
-            .uuid_length = ESP_UUID_LEN_16,
-            .uuid_p = (uint8_t *)&light_char_uuid,
-            .perm = ESP_GATT_PERM_READ,
-            .max_length = sizeof(light_value),
-            .length = sizeof(light_value),
-            .value = light_value,
-        },
-    },
-    [IDX_CHAR_PUMP] = {
+    [IDX_CHAR_WATER] = {
         .attr_control = {ESP_GATT_AUTO_RSP},
         .att_desc = {
             .uuid_length = ESP_UUID_LEN_16,
@@ -194,73 +134,78 @@ static const esp_gatts_attr_db_t flora_gatt_db[FLORA_IDX_NB] = {
             .value = (uint8_t *)char_prop_read_write,
         },
     },
-    [IDX_CHAR_PUMP_VAL] = {
+    [IDX_CHAR_WATER_VAL] = {
         .attr_control = {ESP_GATT_AUTO_RSP},
         .att_desc = {
             .uuid_length = ESP_UUID_LEN_128,
-            .uuid_p = (uint8_t *)pump_char_uuid,
+            .uuid_p = (uint8_t *)water_char_uuid,
             .perm = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-            .max_length = sizeof(pump_state_value),
-            .length = sizeof(pump_state_value),
-            .value = pump_state_value,
+            .max_length = sizeof(uint32_t),
+            .length = sizeof(uint32_t),
+            .value = (uint8_t[]){0x00, 0x00, 0x00, 0x00},
         },
     },
 };
 
-static void encode_measurements(void)
+void ble_server_register_handlers(ble_server_water_cmd_cb_t water_cb)
 {
-    int16_t temp_centi = (int16_t)(latest_measurements.temperature_c * 100.0f);
-    temperature_value[0] = (uint8_t)(temp_centi & 0xFF);
-    temperature_value[1] = (uint8_t)((temp_centi >> 8) & 0xFF);
-
-    uint16_t soil = latest_measurements.soil_moisture_pct;
-    soil_moisture_value[0] = (uint8_t)(soil & 0xFF);
-    soil_moisture_value[1] = (uint8_t)((soil >> 8) & 0xFF);
-
-    uint16_t light = latest_measurements.light_lux;
-    light_value[0] = (uint8_t)(light & 0xFF);
-    light_value[1] = (uint8_t)((light >> 8) & 0xFF);
+    water_cmd_cb = water_cb;
 }
 
-static void apply_measurements_to_attrs(void)
+static void apply_hall_value(void)
 {
     if (!attr_table_ready) {
         return;
     }
-
-    encode_measurements();
-    esp_ble_gatts_set_attr_value(handle_table[IDX_CHAR_TEMP_VAL], sizeof(temperature_value), temperature_value);
-    esp_ble_gatts_set_attr_value(handle_table[IDX_CHAR_SOIL_VAL], sizeof(soil_moisture_value), soil_moisture_value);
-    esp_ble_gatts_set_attr_value(handle_table[IDX_CHAR_LIGHT_VAL], sizeof(light_value), light_value);
-
-    if (temp_notify_enabled && device_connected) {
+    esp_ble_gatts_set_attr_value(handle_table[IDX_CHAR_HALL_VAL], sizeof(hall_value), hall_value);
+    if (hall_notify_enabled && device_connected) {
         esp_ble_gatts_send_indicate(
             gatt_if_global,
             connection_id,
-            handle_table[IDX_CHAR_TEMP_VAL],
-            sizeof(temperature_value),
-            temperature_value,
+            handle_table[IDX_CHAR_HALL_VAL],
+            sizeof(hall_value),
+            hall_value,
             false);
     }
 }
 
-void ble_server_update_measurements(const ble_server_measurements_t *measurements)
+void ble_server_set_hall_state(uint8_t new_state)
 {
-    if (!measurements) {
+    hall_value[0] = new_state ? 1 : 0;
+    apply_hall_value();
+}
+
+static void handle_water_write(const esp_ble_gatts_cb_param_t *param)
+{
+    uint32_t duration_ms = 0;
+    if (param->write.len >= 4) {
+        duration_ms = param->write.value[0] |
+                      (param->write.value[1] << 8) |
+                      (param->write.value[2] << 16) |
+                      (param->write.value[3] << 24);
+    } else if (param->write.len >= 2) {
+        duration_ms = param->write.value[0] |
+                      (param->write.value[1] << 8);
+    } else if (param->write.len == 1) {
+        duration_ms = param->write.value[0] * 100;
+    } else {
+        ESP_LOGW(TAG, "Pusta komenda water");
         return;
     }
 
-    latest_measurements = *measurements;
-    apply_measurements_to_attrs();
-    ESP_LOGI(TAG, "Zaktualizowano pomiary BLE: T=%.2fC, wilg=%u%%, lux=%u",
-             latest_measurements.temperature_c,
-             latest_measurements.soil_moisture_pct,
-             latest_measurements.light_lux);
-}
+    esp_ble_gatts_set_attr_value(handle_table[IDX_CHAR_WATER_VAL], param->write.len, param->write.value);
 
-void ble_server_register_pump_callback(ble_server_pump_command_cb_t callback)
-{
-    pump_callback = callback;
+    if (hall_value[0] != 1) {
+        ESP_LOGW(TAG, "Komenda water odrzucona: Hall=%u", hall_value[0]);
+        return;
+    }
+
+    if (water_cmd_cb) {
+        esp_err_t res = water_cmd_cb(duration_ms);
+        ESP_LOGI(TAG, "Komenda water dur=%u ms wynik=%s", duration_ms, esp_err_to_name(res));
+    } else {
+        ESP_LOGW(TAG, "Brak zarejestrowanego handlera water");
+    }
 }
 
 static void gatts_event_handler(esp_gatts_cb_event_t event,
@@ -271,9 +216,9 @@ static void gatts_event_handler(esp_gatts_cb_event_t event,
     case ESP_GATTS_REG_EVT:
         ESP_LOGI(TAG, "Zarejestrowano GATT interface");
         gatt_if_global = gatts_if;
-        ESP_ERROR_CHECK(esp_ble_gap_set_device_name(FLORA_DEVICE_NAME));
+        ESP_ERROR_CHECK(esp_ble_gap_set_device_name(DOCK_DEVICE_NAME));
         ESP_ERROR_CHECK(esp_ble_gap_config_adv_data(&adv_data));
-        ESP_ERROR_CHECK(esp_ble_gatts_create_attr_tab(flora_gatt_db, gatts_if, FLORA_IDX_NB, FLORA_SERVICE_INST_ID));
+        ESP_ERROR_CHECK(esp_ble_gatts_create_attr_tab(dock_gatt_db, gatts_if, FLORA_IDX_NB, DOCK_SERVICE_INST_ID));
         break;
 
     case ESP_GATTS_CREAT_ATTR_TAB_EVT:
@@ -285,7 +230,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event,
         attr_table_ready = true;
         ESP_LOGI(TAG, "Tabela atrybutow gotowa, start uslugi");
         esp_ble_gatts_start_service(handle_table[IDX_SVC]);
-        apply_measurements_to_attrs();
+        apply_hall_value();
         break;
 
     case ESP_GATTS_START_EVT:
@@ -301,24 +246,19 @@ static void gatts_event_handler(esp_gatts_cb_event_t event,
     case ESP_GATTS_DISCONNECT_EVT:
         ESP_LOGI(TAG, "Klient rozlaczony");
         device_connected = false;
-        temp_notify_enabled = false;
+        hall_notify_enabled = false;
         connection_id = 0xFFFF;
         ESP_ERROR_CHECK(esp_ble_gap_start_advertising(&adv_params));
         break;
 
     case ESP_GATTS_WRITE_EVT:
         if (!param->write.is_prep) {
-            if (param->write.handle == handle_table[IDX_CHAR_TEMP_CCC]) {
+            if (param->write.handle == handle_table[IDX_CHAR_HALL_CCC] && param->write.len >= 2) {
                 uint16_t ccc_val = param->write.value[1] << 8 | param->write.value[0];
-                temp_notify_enabled = (ccc_val == 0x0001);
-                ESP_LOGI(TAG, "Powiadomienia temperatury %s", temp_notify_enabled ? "WLACZONE" : "WYLACZONE");
-            } else if (param->write.handle == handle_table[IDX_CHAR_PUMP_VAL] && param->write.len >= 1) {
-                pump_state_value[0] = param->write.value[0] ? 1 : 0;
-                esp_ble_gatts_set_attr_value(handle_table[IDX_CHAR_PUMP_VAL], sizeof(pump_state_value), pump_state_value);
-                ESP_LOGI(TAG, "Komenda pompy: %s", pump_state_value[0] ? "START" : "STOP");
-                if (pump_callback) {
-                    pump_callback(pump_state_value[0] == 1);
-                }
+                hall_notify_enabled = (ccc_val == 0x0001);
+                ESP_LOGI(TAG, "Powiadomienia HALL %s", hall_notify_enabled ? "WLACZONE" : "WYLACZONE");
+            } else if (param->write.handle == handle_table[IDX_CHAR_WATER_VAL]) {
+                handle_water_write(param);
             }
         }
         break;
@@ -367,5 +307,5 @@ void ble_server_init(void)
     esp_ble_gatts_register_callback(gatts_event_handler);
     esp_ble_gap_register_callback(gap_event_handler);
 
-    esp_ble_gatts_app_register(FLORA_SERVICE_INST_ID);
+    esp_ble_gatts_app_register(DOCK_SERVICE_INST_ID);
 }

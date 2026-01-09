@@ -34,6 +34,7 @@
 #include "wsn_controller.h"
 #include "flora_mqtt.h"
 #include "esp_log.h"
+#include "dock_control.h"
 
 void nvs_init(void)
 {
@@ -283,59 +284,95 @@ static void motor_controller_task(void *param)
     }
 }
 
+// Testowy task do sprawdzania pompy i logowania czujnika Halla
+static void dock_test_task(void *param)
+{
+    (void)param;
+    
+    ESP_LOGI(TAG, "Dock test task uruchomiony");
+    
+    // Poczekaj na inicjalizację dock_control
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    
+    uint32_t test_cycle = 0;
+    
+    while (1) {
+        // Loguj stan Halla
+        uint8_t hall_state = dock_control_get_hall_state();
+        bool pump_active = dock_control_is_pump_active();
+        
+        ESP_LOGI(TAG, "[TEST] Hall: %u, Pompa aktywna: %s", 
+                 hall_state, pump_active ? "TAK" : "NIE");
+        
+        // Co 10 sekund testuj pompę (jeśli Hall == 1)
+        if (test_cycle % 5 == 0) {  // 5 * 2s = 10s
+            if (hall_state == 1) {
+                ESP_LOGI(TAG, "[TEST] Uruchamianie testu pompy (2 sekundy)...");
+                esp_err_t ret = dock_control_handle_water_command(2000); // 2 sekundy
+                if (ret == ESP_OK) {
+                    ESP_LOGI(TAG, "[TEST] Pompa uruchomiona pomyślnie");
+                    
+                    // Czekaj i sprawdzaj czy pompa działa
+                    for (int i = 0; i < 10; i++) {
+                        vTaskDelay(pdMS_TO_TICKS(200));
+                        bool active = dock_control_is_pump_active();
+                        ESP_LOGI(TAG, "[TEST] Pompa po %d ms: %s", 
+                                 (i + 1) * 200, active ? "AKTYWNA" : "ZATRZYMANA");
+                    }
+                } else {
+                    ESP_LOGW(TAG, "[TEST] Nie udało się uruchomić pompy: %s", 
+                             esp_err_to_name(ret));
+                }
+            } else {
+                ESP_LOGW(TAG, "[TEST] Pompa nie może być uruchomiona - Hall != 1 (aktualnie: %u)", 
+                         hall_state);
+            }
+        }
+        
+        test_cycle++;
+        vTaskDelay(pdMS_TO_TICKS(2000)); // Sprawdzaj co 2 sekundy
+    }
+}
+
 void app_main(void)
 {
     nvs_init();
-    
-    // Inicjalizacja WiFi (w osobnym tasku)
+    ESP_LOGI(TAG, "Start trybu stacji dokującej");
+
+    // Zakomentowane stare taski (WiFi/MQTT/WSN) - pozostawione do ewentualnego użycia
+#if 0
     xTaskCreate(wifi_init_task, "wifi_init_task", 4096, NULL, 5, NULL);
-    
-    // Poczekaj chwilę na inicjalizację WiFi przed uruchomieniem MQTT
     vTaskDelay(pdMS_TO_TICKS(2000));
-    
-    // Inicjalizacja i start MQTT
     mqtt_app_start();
-    
-    // Task publikujący dane z czujników przez MQTT
     xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 4096, NULL, 5, NULL);
-    
-    // Poczekaj na inicjalizację czujników przed uruchomieniem WSN
     vTaskDelay(pdMS_TO_TICKS(3000));
-    
-    // Task monitorowania przeszkód - niezależny, najwyższy priorytet bezpieczeństwa
-    // Zatrzymuje silniki gdy wykryje przeszkodę, niezależnie od sterowania MQTT lub WSN
-    // Sprawdza oba czujniki IR (przód i tył)
+
     static obstacle_monitor_config_t obstacle_config;
-    obstacle_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();  // Czujnik IR 2 z przodu
-    obstacle_config.ir_sensor_back = mqtt_get_ir_sensor_pin_1();   // Czujnik IR 1 z tyłu
-    xTaskCreate(obstacle_monitor_task, "obstacle_monitor_task", 2048, 
-                &obstacle_config, 10, NULL);  // Priorytet 10 - najwyższy
-    
-    // Task kontrolera WSN - autonomiczne poruszanie się w kierunku światła
-    // Uwaga: czujniki są fizycznie zamontowane odwrotnie niż w konfiguracji
+    obstacle_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();
+    obstacle_config.ir_sensor_back = mqtt_get_ir_sensor_pin_1();
+    xTaskCreate(obstacle_monitor_task, "obstacle_monitor_task", 2048,
+                &obstacle_config, 10, NULL);
+
     static wsn_controller_config_t wsn_config;
-    wsn_config.light_sensor_1 = mqtt_get_light_config_2();  // Fizycznie z przodu
-    wsn_config.light_sensor_2 = mqtt_get_light_config_1();  // Fizycznie z tyłu
-    wsn_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();  // Czujnik IR 2 z przodu
-    wsn_config.base_speed = 150;                              // Bazowa prędkość silników
-    wsn_config.light_threshold_lux = 10.0f;                   // Próg różnicy światła (10 lux)
-    wsn_config.check_interval_ms = 200;                       // Sprawdzanie co 200ms
-    wsn_config.move_distance_cm = 5.0f;                       // Przesunięcie o 5cm
-    wsn_config.wait_after_threshold_ms = 5 * 60 * 1000;      // Czekaj 5 minut po osiągnięciu progu
+    wsn_config.light_sensor_1 = mqtt_get_light_config_2();
+    wsn_config.light_sensor_2 = mqtt_get_light_config_1();
+    wsn_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();
+    wsn_config.base_speed = 150;
+    wsn_config.light_threshold_lux = 10.0f;
+    wsn_config.check_interval_ms = 200;
+    wsn_config.move_distance_cm = 5.0f;
+    wsn_config.wait_after_threshold_ms = 5 * 60 * 1000;
     xTaskCreate(wsn_controller_task, "wsn_controller_task", 4096, &wsn_config, 5, NULL);
-    /*
+
     sensor_temp_init();
     sensor_temp_reading_t reading;
     sensor_temp_read(&reading);
     ESP_LOGI(TAG, "Temperature: %.2f°C, Humidity: %.2f%%", reading.temperature_c, reading.humidity_percent);
-    */
     ////xTaskCreate(wifi_init_task, "wifi_init_task", 4096, NULL, 5, NULL);
     //xTaskCreate(ble_server_task, "ble_server_task", 4096, NULL, 5, NULL);
     ////xTaskCreate(ble_client_task, "ble_client_task", 8192, NULL, 5, NULL);
     ////xTaskCreate(http_get_task_raw, "http_get_task_raw", 8192, NULL, 5, NULL);
 
-
-    
     // Utworzenie taska dla czujnika Hall
     //xTaskCreate(sensor_hall_task, "sensor_hall_task", 2048, NULL, 5, NULL);
 
@@ -353,7 +390,7 @@ void app_main(void)
     //mpu6050_test_start();
 
     //xTaskCreate(soil_sensor_task, "soil_sensor_task", 4096, NULL, 5, NULL);
-    /*
+
     xTaskCreate(sensor_temp_task, "sensor_temp_task", 4096, NULL, 5, NULL);
 
     // Utworzenie tasków dla czujników światła VEML7700
@@ -385,5 +422,18 @@ void app_main(void)
     // Utworzenie taska dla sterownika silników
     
     xTaskCreate(motor_controller_task, "motor_controller_task", 4096, NULL, 5, NULL);
-    */
+#endif
+
+    // Inicjalizacja stacji dokującej (Hall + MOSFET/pompa) oraz BLE
+    esp_err_t dock_err = dock_control_init(DOCK_HALL_GPIO, DOCK_PUMP_GPIO, ble_server_set_hall_state);
+    if (dock_err != ESP_OK) {
+        ESP_LOGE(TAG, "Init dock_control nieudany: %s", esp_err_to_name(dock_err));
+    }
+
+    ble_server_register_handlers(dock_control_handle_water_command);
+    ble_server_set_hall_state(dock_control_get_hall_state());
+    ble_server_init();
+    
+    // Testowy task do sprawdzania pompy i logowania Halla
+    xTaskCreate(dock_test_task, "dock_test_task", 4096, NULL, 5, NULL);
 }

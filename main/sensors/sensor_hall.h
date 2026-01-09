@@ -6,7 +6,7 @@
 /**
  * @brief Inicjalizuje czujnik Hall (A3144)
  * 
- * Konfiguruje GPIO 18 jako wejście z wbudowanym pull-up.
+ * Konfiguruje GPIO DOCK_HALL_GPIO jako wejście z wbudowanym pull-up.
  * 
  * @return ESP_OK jeśli inicjalizacja się powiodła
  */

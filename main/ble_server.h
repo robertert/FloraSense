@@ -2,22 +2,17 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "esp_err.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-    float temperature_c;
-    uint16_t soil_moisture_pct;
-    uint16_t light_lux;
-} ble_server_measurements_t;
-
-typedef void (*ble_server_pump_command_cb_t)(bool pump_on);
+typedef esp_err_t (*ble_server_water_cmd_cb_t)(uint32_t duration_ms);
 
 void ble_server_init(void);
-void ble_server_update_measurements(const ble_server_measurements_t *measurements);
-void ble_server_register_pump_callback(ble_server_pump_command_cb_t callback);
+void ble_server_register_handlers(ble_server_water_cmd_cb_t water_cb);
+void ble_server_set_hall_state(uint8_t hall_state);
 
 #ifdef __cplusplus
 }
