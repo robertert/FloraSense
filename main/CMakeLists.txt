@@ -17,6 +17,7 @@ idf_component_register(
         "sensors/hardware_test.c"
         "mqtt_client.c"
         "wsn_controller.c"
+        "water_controller.c"
         "bmp280.c"
         "bmp280.h"
         "mpu6050/mpu6050_test.c"
@@ -40,4 +41,5 @@ idf_component_register(
         esp_adc
         mqtt
         esp_driver_ledc
+        cjson
 )

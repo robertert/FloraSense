@@ -71,35 +71,7 @@ ESP32 publikuje dane z czujników co **10 sekund** (PUB_INTERVAL_MS).
 
 ---
 
-#### 2. Wilgotność
-
-**Topic:** `florasense/{user_id}/{device_id}/sensor/humidity`
-
-**Format JSON:**
-
-```json
-{
-  "value": 65.32,
-  "unit": "%",
-  "sensor": 1
-}
-```
-
-**Pola:**
-
-- `value` (float) - Wilgotność względna w procentach
-- `unit` (string) - Jednostka: "%"
-- `sensor` (int) - Numer czujnika (1)
-
-**Przykład:**
-
-```json
-{ "value": 65.32, "unit": "%", "sensor": 1 }
-```
-
----
-
-#### 3. Czujnik światła (Light Sensor 1)
+#### 2. Czujnik światła (Light Sensor 1)
 
 **Topic:** `florasense/{user_id}/{device_id}/sensor/light`
 
@@ -129,7 +101,7 @@ ESP32 publikuje dane z czujników co **10 sekund** (PUB_INTERVAL_MS).
 
 ---
 
-#### 4. Czujnik gleby (Soil Moisture)
+#### 3. Czujnik gleby (Soil Moisture)
 
 **Topic:** `florasense/{user_id}/{device_id}/sensor/soil`
 
@@ -159,7 +131,7 @@ ESP32 publikuje dane z czujników co **10 sekund** (PUB_INTERVAL_MS).
 
 ---
 
-#### 5. Czujnik IR Obstacle (1)
+#### 4. Czujnik IR Obstacle (1)
 
 **Topic:** `florasense/{user_id}/{device_id}/sensor/ir`
 
@@ -187,7 +159,7 @@ ESP32 publikuje dane z czujników co **10 sekund** (PUB_INTERVAL_MS).
 
 ---
 
-#### 6. Czujnik dock (Dock Sensor)
+#### 5. Czujnik dock (Dock Sensor)
 
 **Topic:** `florasense/{user_id}/{device_id}/state/dock`
 
@@ -211,7 +183,7 @@ ESP32 publikuje dane z czujników co **10 sekund** (PUB_INTERVAL_MS).
 
 ---
 
-#### 7. Czujnik Hall (Hall Sensor)
+#### 6. Czujnik Hall (Hall Sensor)
 
 **Topic:** `florasense/{user_id}/{device_id}/sensor/hall`
 
@@ -235,7 +207,7 @@ ESP32 publikuje dane z czujników co **10 sekund** (PUB_INTERVAL_MS).
 
 ---
 
-#### 8. Bateria (Mock)
+#### 7. Bateria (Mock)
 
 **Topic:** `florasense/{user_id}/{device_id}/state/battery`
 
@@ -258,6 +230,105 @@ ESP32 publikuje dane z czujników co **10 sekund** (PUB_INTERVAL_MS).
 ```json
 { "value": 75, "unit": "%" }
 ```
+
+---
+
+#### 8. Alarmy (Alarms)
+
+**Topic:** `florasense/{user_id}/{device_id}/alarm`
+
+**Format JSON:**
+
+```json
+{
+  "temp_low": {
+    "value": 12.5,
+    "threshold": 15.0,
+    "unit": "C"
+  },
+  "soil_high": {
+    "value": 85.0,
+    "threshold": 80.0,
+    "unit": "%"
+  }
+}
+```
+
+**Pola:**
+
+Alarm jest publikowany tylko wtedy, gdy wartość przekroczy ustawiony próg. Może zawierać jeden lub więcej typów alarmów:
+
+- `temp_low` (object, opcjonalne) - Alarm gdy temperatura jest poniżej `temp_min`
+  - `value` (float) - Aktualna temperatura
+  - `threshold` (float) - Ustawiony próg minimalny
+  - `unit` (string) - Jednostka: "C"
+- `temp_high` (object, opcjonalne) - Alarm gdy temperatura jest powyżej `temp_max`
+  - `value` (float) - Aktualna temperatura
+  - `threshold` (float) - Ustawiony próg maksymalny
+  - `unit` (string) - Jednostka: "C"
+- `soil_low` (object, opcjonalne) - Alarm gdy wilgotność gleby jest poniżej `soil_moisture_min`
+  - `value` (float) - Aktualna wilgotność gleby
+  - `threshold` (float) - Ustawiony próg minimalny
+  - `unit` (string) - Jednostka: "%"
+- `soil_high` (object, opcjonalne) - Alarm gdy wilgotność gleby jest powyżej `soil_moisture_max`
+  - `value` (float) - Aktualna wilgotność gleby
+  - `threshold` (float) - Ustawiony próg maksymalny
+  - `unit` (string) - Jednostka: "%"
+- `battery_low` (object, opcjonalne) - Alarm gdy poziom baterii jest poniżej `battery_min`
+  - `value` (float) - Aktualny poziom baterii
+  - `threshold` (float) - Ustawiony próg minimalny
+  - `unit` (string) - Jednostka: "%"
+
+**Opis:** Alarmy są publikowane automatycznie w tym samym interwale co dane z czujników, ale tylko gdy wartość przekroczy ustawiony próg. Jeśli kilka progów jest przekroczonych jednocześnie, wszystkie alarmy są publikowane w jednej wiadomości.
+
+**Przykłady:**
+
+Alarm niskiej temperatury:
+
+```json
+{
+  "temp_low": {
+    "value": 12.5,
+    "threshold": 15.0,
+    "unit": "C"
+  }
+}
+```
+
+Alarm wysokiej wilgotności gleby:
+
+```json
+{
+  "soil_high": {
+    "value": 85.0,
+    "threshold": 80.0,
+    "unit": "%"
+  }
+}
+```
+
+Wiele alarmów jednocześnie:
+
+```json
+{
+  "temp_high": {
+    "value": 32.5,
+    "threshold": 30.0,
+    "unit": "C"
+  },
+  "soil_low": {
+    "value": 15.0,
+    "threshold": 20.0,
+    "unit": "%"
+  }
+}
+```
+
+**Uwaga:**
+
+- Alarmy są publikowane tylko gdy konfiguracja alarmów jest ustawiona (przez topic `/config/alarm`)
+- Jeśli wartość wraca do normalnego zakresu, alarm przestaje być publikowany
+- Alarmy są sprawdzane w tym samym interwale co publikacja danych z czujników
 
 ---
 
@@ -409,6 +480,141 @@ florasense/nowy_user/8813BF6983D0/cmd/move
 
 ---
 
+### Konfiguracja alarmów
+
+**Topic:** `florasense/{device_id}/config/alarm`
+
+**Format JSON:**
+
+```json
+{
+  "temp_min": 15.0,
+  "temp_max": 30.0,
+  "soil_moisture_min": 20.0,
+  "soil_moisture_max": 80.0,
+  "battery_min": 20.0
+}
+```
+
+**Pola:**
+
+- `temp_min` (float, opcjonalne) - Minimalna temperatura w stopniach Celsjusza
+- `temp_max` (float, opcjonalne) - Maksymalna temperatura w stopniach Celsjusza
+- `soil_moisture_min` (float, opcjonalne) - Minimalna wilgotność gleby w procentach
+- `soil_moisture_max` (float, opcjonalne) - Maksymalna wilgotność gleby w procentach
+- `battery_min` (float, opcjonalne) - Minimalny poziom baterii w procentach (od tego progu miga LED i wysyłany jest alarm)
+
+**Opis:** Ustawia progi alarmowe dla temperatury i wilgotności gleby. Wszystkie pola są opcjonalne - można wysłać tylko te, które chcesz zaktualizować.
+
+**Przykład:**
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/alarm" \
+  -m '{"temp_min":15.0,"temp_max":30.0,"soil_moisture_min":20.0,"soil_moisture_max":80.0}'
+```
+
+**Uwaga:**
+
+- Konfiguracja alarmów jest zapisywana w NVS i będzie zachowana po restarcie ESP32.
+- Po ustawieniu progów, alarmy są automatycznie publikowane na topic `florasense/{user_id}/{device_id}/alarm` gdy wartości przekroczą progi.
+- Można wysłać tylko część pól - pozostałe wartości pozostaną bez zmian.
+
+---
+
+### Konfiguracja interwału pomiarów
+
+**Topic:** `florasense/{device_id}/config/measurement`
+
+**Format JSON:**
+
+```json
+{
+  "measurement_interval_ms": 5000
+}
+```
+
+**Pola:**
+
+- `measurement_interval_ms` (int, wymagane) - Interwał publikacji danych z czujników w milisekundach (1000-600000, czyli 1 sekunda - 10 minut)
+
+**Opis:** Ustawia interwał publikacji danych z czujników. Domyślna wartość to 10000 ms (10 sekund).
+
+**Przykład:**
+
+Ustawienie interwału na 5 sekund:
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/measurement" \
+  -m '{"measurement_interval_ms":5000}'
+```
+
+Ustawienie interwału na 30 sekund:
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/measurement" \
+  -m '{"measurement_interval_ms":30000}'
+```
+
+**Uwaga:**
+
+- Konfiguracja interwału jest zapisywana w NVS i będzie zachowana po restarcie ESP32.
+- Wartości poza zakresem 1000-600000 ms będą odrzucone z ostrzeżeniem w logach.
+
+---
+
+### Konfiguracja urządzenia
+
+**Topic:** `florasense/{device_id}/config/device`
+
+**Format JSON:**
+
+```json
+{
+  "light_movement_enabled": true,
+  "light_threshold": 500.0,
+  "soil_humidity_threshold": 50.0,
+  "water_enabled": true
+}
+```
+
+**Pola:**
+
+- `light_movement_enabled` (boolean, opcjonalne) - Włącza/wyłącza automatyczne poruszanie się w kierunku światła
+- `light_threshold` (float, opcjonalne) - Próg różnicy światła w lux dla WSN controller (domyślnie 10.0)
+- `soil_humidity_threshold` (float, opcjonalne) - Próg wilgotności gleby w procentach dla automatycznego podlewania (domyślnie 50.0)
+- `water_enabled` (boolean, opcjonalne) - Włącza/wyłącza automatyczne podlewanie (gdy wilgotność < próg, jedzie do przodu do ściany)
+
+**Opis:** Włącza lub wyłącza funkcję automatycznego poruszania się urządzenia w kierunku światła (light-seeking movement).
+
+**Przykład:**
+
+Włączenie automatycznego poruszania się:
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/device" \
+  -m '{"light_movement_enabled":true}'
+```
+
+Wyłączenie automatycznego poruszania się:
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/device" \
+  -m '{"light_movement_enabled":false}'
+```
+
+**Uwaga:**
+
+- Konfiguracja urządzenia jest zapisywana w NVS i będzie zachowana po restarcie ESP32.
+- Gdy `light_movement_enabled` jest ustawione na `false`, automatyczne poruszanie się w kierunku światła (WSN controller) jest wyłączone i silniki są zatrzymywane.
+- Gdy `light_movement_enabled` jest ustawione na `true`, urządzenie automatycznie porusza się w kierunku lepszego światła zgodnie z konfiguracją WSN controller.
+
+---
+
 ## Przykłady użycia
 
 ### 1. Monitorowanie wszystkich danych
@@ -479,6 +685,30 @@ mosquitto_pub -h 172.20.10.2 -p 1883 \
   -m "moj_user"
 ```
 
+#### Konfiguracja alarmów:
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/alarm" \
+  -m '{"temp_min":15.0,"temp_max":30.0,"soil_moisture_min":20.0,"soil_moisture_max":80.0}'
+```
+
+#### Zmiana interwału pomiarów:
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/measurement" \
+  -m '{"measurement_interval_ms":5000}'
+```
+
+#### Konfiguracja urządzenia:
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/device" \
+  -m '{"light_movement_enabled":true}'
+```
+
 ---
 
 ## Kalibracja silników
@@ -520,13 +750,14 @@ Jeśli robot przejeżdża 25 cm w 1 sekundę przy prędkości 128, ustaw:
 
 ## Interwał publikacji
 
-Dane z czujników są publikowane co **10 sekund** (PUB_INTERVAL_MS).
+Dane z czujników są publikowane co **10 sekund** domyślnie (można zmienić przez MQTT).
 
-**Zmiana interwału:** Edytuj `PUB_INTERVAL_MS` w pliku `mqtt_client.c`:
+**Zmiana interwału:**
 
-```c
-#define PUB_INTERVAL_MS 10000  // 10 sekund
-```
+- Przez MQTT: Wyślij konfigurację do tematu `florasense/{device_id}/config/measurement` (patrz sekcja [Konfiguracja interwału pomiarów](#konfiguracja-interwału-pomiarów))
+- W kodzie: Domyślna wartość jest zdefiniowana jako `DEFAULT_MEASUREMENT_INTERVAL_MS` w pliku `mqtt_client.c`
+
+**Uwaga:** Interwał jest zapisywany w NVS i będzie zachowany po restarcie ESP32.
 
 ---
 
@@ -548,15 +779,17 @@ Nieprawidłowe komendy są logowane jako ostrzeżenie, ale nie przerywają dzia�
 
 ## Logi ESP32
 
-Wszystkie operacje są logowane z tagiem `flora-mqtt`:
+Wszystkie operacje są logowane z tagiem `flora-mqtt` z **timestampami** w formacie `[YYYY-MM-DD HH:MM:SS.mmm]`:
 
 ```
-I (xxx) flora-mqtt: MQTT connected to broker mqtt://172.20.10.2:1883!
-I (xxx) flora-mqtt: Subscribed to: florasense/default_user/8813BF6983D0/cmd/water, ...
-I (xxx) flora-mqtt: Published to florasense/default_user/8813BF6983D0/sensor/temp | msg_id=123 | {"value": 23.45, "unit": "C", "sensor": 1}
-I (xxx) flora-mqtt: MOVE_CMD received: {"direction":"forward","distance":20}
+I (xxx) flora-mqtt: [2024-01-15 14:23:45.123] MQTT connected to broker mqtt://172.20.10.2:1883!
+I (xxx) flora-mqtt: [2024-01-15 14:23:45.456] Subscribed to: florasense/default_user/8813BF6983D0/cmd/water, ...
+I (xxx) flora-mqtt: [2024-01-15 14:23:50.789] Published to florasense/default_user/8813BF6983D0/sensor/temp | msg_id=123 | {"value": 23.45, "unit": "C", "sensor": 1}
+I (xxx) flora-mqtt: [2024-01-15 14:24:00.012] MOVE_CMD received: {"direction":"forward","distance":20}
 I (xxx) MOTOR_CTRL: Przejeżdżanie 20.00 cm w kierunku 'forward' (prędkość=128, czas=819 ms, kalibracja=24.40 cm/s)
 ```
+
+**Uwaga:** Timestampy są dodawane do wszystkich logów MQTT (połączenia, publikacje, komendy, błędy) dla łatwiejszego śledzenia i debugowania.
 
 ---
 
@@ -586,6 +819,34 @@ I (xxx) MOTOR_CTRL: Przejeżdżanie 20.00 cm w kierunku 'forward' (prędkość=1
 ---
 
 ## Changelog
+
+- **v1.4** - Rozszerzenie konfiguracji i automatyczne podlewanie
+
+  - Dodano `battery_min` do konfiguracji alarmów - konfigurowalny próg niskiego poziomu baterii
+  - LED ostrzegawczy baterii używa teraz dynamicznego progu z konfiguracji alarmów
+  - Rozszerzono konfigurację urządzenia o `light_threshold`, `soil_humidity_threshold`, `water_enabled`
+  - Implementacja automatycznego podlewania - jazda do przodu przy niskiej wilgotności gleby
+  - WSN controller używa teraz `light_threshold` z konfiguracji MQTT
+
+- **v1.3** - Dodano automatyczne publikowanie alarmów i integrację z WSN controller
+
+  - Automatyczne publikowanie alarmów na topic `florasense/{user_id}/{device_id}/alarm` gdy wartości przekroczą progi
+  - Integracja flagi `light_movement_enabled` z WSN controller - automatyczne poruszanie się w kierunku światła jest kontrolowane przez MQTT
+  - Alarmy są publikowane w tym samym interwale co dane z czujników
+  - WSN controller sprawdza flagę `light_movement_enabled` i zatrzymuje się gdy jest wyłączona
+
+- **v1.2** - Dodano nowe tematy konfiguracji MQTT
+
+  - Konfiguracja alarmów (`/config/alarm`) - ustawianie progów temperatury i wilgotności gleby
+  - Konfiguracja pomiarów (`/config/measurement`) - dynamiczna zmiana interwału publikacji danych
+  - Konfiguracja urządzenia (`/config/device`) - włączanie/wyłączanie automatycznego poruszania się w kierunku światła
+  - Wszystkie konfiguracje są zapisywane w NVS i zachowane po restarcie
+  - Interwał publikacji jest teraz dynamiczny i konfigurowalny przez MQTT
+
+- **v1.1** - Dodano timestampy do logów MQTT
+
+  - Wszystkie logi zawierają timestamp w formacie `[YYYY-MM-DD HH:MM:SS.mmm]`
+  - Ułatwia debugowanie i śledzenie zdarzeń w czasie
 
 - **v1.0** - Podstawowa obsługa MQTT
   - Publikacja danych z czujników

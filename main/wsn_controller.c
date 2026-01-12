@@ -8,6 +8,7 @@
  */
 
 #include "wsn_controller.h"
+#include "flora_mqtt.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -123,6 +124,14 @@ void wsn_controller_task(void *param)
     bool waiting_mode = false;  // Tryb oczekiwania po osiągnięciu progu
 
     while (1) {
+        // Sprawdź czy automatyczne poruszanie się w kierunku światła jest włączone
+        if (!mqtt_get_light_movement_enabled()) {
+            // Jeśli wyłączone, zatrzymaj silniki i czekaj
+            ESP_LOGI(TAG, "Automatyczne poruszanie się w kierunku światła jest wyłączone - zatrzymywanie");
+            vTaskDelay(pdMS_TO_TICKS(config->wait_after_threshold_ms));
+            continue;
+        }
+
         // Uwaga: Sprawdzanie przeszkód jest obsługiwane przez osobny task obstacle_monitor_task
         // który ma najwyższy priorytet i zatrzymuje silniki niezależnie od tego taska
         
@@ -166,7 +175,12 @@ void wsn_controller_task(void *param)
 
             // Jeśli różnica jest większa niż próg, przesuń się o move_distance_cm
             // Uwaga: light_sensor_1 = fizyczny czujnik z przodu, light_sensor_2 = fizyczny czujnik z tyłu
-            if (abs_diff > config->light_threshold_lux) {
+            // Użyj progu z konfiguracji MQTT jeśli jest dostępny, w przeciwnym razie użyj z konfiguracji
+            float threshold = mqtt_get_light_threshold();
+            if (threshold <= 0) {
+                threshold = config->light_threshold_lux;  // Fallback do konfiguracji
+            }
+            if (abs_diff > threshold) {
                 const char *direction = NULL;
                 
                 if (diff > 0) {
@@ -193,8 +207,12 @@ void wsn_controller_task(void *param)
                 vTaskDelay(pdMS_TO_TICKS(500));
             } else {
                 // Różnica jest mała - osiągnięto próg, przejdź w tryb oczekiwania
+                float threshold = mqtt_get_light_threshold();
+                if (threshold <= 0) {
+                    threshold = config->light_threshold_lux;  // Fallback do konfiguracji
+                }
                 ESP_LOGI(TAG, "Różnica światła zbyt mała (%.2f lux <= %.2f lux) - osiągnięto próg, przechodzę w tryb oczekiwania",
-                         abs_diff, config->light_threshold_lux);
+                         abs_diff, threshold);
                 motor_controller_stop();
                 waiting_mode = true;
             }

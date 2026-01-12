@@ -32,6 +32,7 @@
 #include "sensor_ir.h"
 #include "motor_controller.h"
 #include "wsn_controller.h"
+#include "water_controller.h"
 #include "flora_mqtt.h"
 #include "esp_log.h"
 
@@ -323,6 +324,9 @@ void app_main(void)
     wsn_config.move_distance_cm = 5.0f;                       // Przesunięcie o 5cm
     wsn_config.wait_after_threshold_ms = 5 * 60 * 1000;      // Czekaj 5 minut po osiągnięciu progu
     xTaskCreate(wsn_controller_task, "wsn_controller_task", 4096, &wsn_config, 5, NULL);
+    
+    // Task kontrolera automatycznego podlewania
+    xTaskCreate(water_controller_task, "water_controller_task", 4096, NULL, 4, NULL);
     /*
     sensor_temp_init();
     sensor_temp_reading_t reading;

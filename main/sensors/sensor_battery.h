@@ -39,6 +39,7 @@ bool sensor_battery_is_initialized(void);
  * Miganie LED jest obsługiwane w tle przez task.
  * 
  * @param battery_percent Aktualny poziom baterii w procentach
+ * @param threshold Próg niskiego poziomu baterii (opcjonalny, 0 = użyj domyślnego z config.h)
  */
-void sensor_battery_update_led(float battery_percent);
+void sensor_battery_update_led(float battery_percent, float threshold);
 

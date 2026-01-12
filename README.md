@@ -135,6 +135,13 @@ Dane z czujników są logowane do konsoli szeregowej oraz mogą być wysyłane p
 florasense/{USER_ID}/{DEVICE_ID}/{nazwa_czujnika}
 ```
 
+## Dokumentacja
+
+Szczegółowa dokumentacja dostępna w katalogu `docs/`:
+
+- **[MQTT API](docs/MQTT_API.md)** - Dokumentacja protokołu MQTT, tematów i komend
+- **[MPU6050 Docs](docs/mpu6050_DOCS.md)** - Dokumentacja czujnika MPU6050
+
 ## Status projektu
 
 Projekt jest w fazie rozwoju. Niektóre funkcjonalności mogą być wykomentowane w kodzie głównym (`flora-sense.c`) i wymagają aktywacji poprzez odkomentowanie odpowiednich linii.

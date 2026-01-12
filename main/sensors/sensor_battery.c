@@ -269,7 +269,7 @@ esp_err_t sensor_battery_read(sensor_battery_reading_t *reading)
     reading->battery_percent = sensor_battery_mv_to_percent(battery_millivolts);
 
     // Aktualizuj stan LED na podstawie poziomu baterii
-    sensor_battery_update_led(reading->battery_percent);
+    sensor_battery_update_led(reading->battery_percent, 0.0f);  // Użyj domyślnego progu
 
     return ESP_OK;
 }
@@ -279,21 +279,24 @@ bool sensor_battery_is_initialized(void)
     return sensor_initialized;
 }
 
-void sensor_battery_update_led(float battery_percent)
+void sensor_battery_update_led(float battery_percent, float threshold)
 {
     if (!led_initialized) {
         return;
     }
     
+    // Użyj podanego progu lub domyślnego z config.h
+    float actual_threshold = (threshold > 0) ? threshold : BATTERY_LOW_THRESHOLD_PERCENT;
+    
     // Włącz miganie jeśli poziom baterii jest poniżej progu
-    if (battery_percent < BATTERY_LOW_THRESHOLD_PERCENT) {
+    if (battery_percent < actual_threshold) {
         if (!led_should_blink) {
-            ESP_LOGW(TAG, "Niski poziom baterii: %.1f%% - włączam miganie LED", battery_percent);
+            ESP_LOGW(TAG, "Niski poziom baterii: %.1f%% < %.1f%% - włączam miganie LED", battery_percent, actual_threshold);
         }
         led_should_blink = true;
     } else {
         if (led_should_blink) {
-            ESP_LOGI(TAG, "Poziom baterii OK: %.1f%% - wyłączam miganie LED", battery_percent);
+            ESP_LOGI(TAG, "Poziom baterii OK: %.1f%% >= %.1f%% - wyłączam miganie LED", battery_percent, actual_threshold);
         }
         led_should_blink = false;
     }
