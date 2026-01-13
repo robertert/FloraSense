@@ -133,12 +133,12 @@ esp_err_t motor_controller_init(void)
 }
 
 /**
- * @brief Ustawia prędkość i kierunek silnika A
+ * @brief Ustawia prędkość i kierunek silnika A (wewnętrzna funkcja bez ramp-up)
  * 
  * @param speed Prędkość w zakresie -255 do 255 (ujemne = wstecz, dodatnie = przód, 0 = stop)
  * @return ESP_OK jeśli sukces
  */
-esp_err_t motor_a_set_speed(int16_t speed)
+static esp_err_t motor_a_set_speed_internal(int16_t speed)
 {
     if (!initialized) {
         ESP_LOGE(TAG, "Sterownik silników nie jest zainicjalizowany");
@@ -193,12 +193,12 @@ esp_err_t motor_a_set_speed(int16_t speed)
 }
 
 /**
- * @brief Ustawia prędkość i kierunek silnika B
+ * @brief Ustawia prędkość i kierunek silnika B (wewnętrzna funkcja bez ramp-up)
  * 
  * @param speed Prędkość w zakresie -255 do 255 (ujemne = wstecz, dodatnie = przód, 0 = stop)
  * @return ESP_OK jeśli sukces
  */
-esp_err_t motor_b_set_speed(int16_t speed)
+static esp_err_t motor_b_set_speed_internal(int16_t speed)
 {
     if (!initialized) {
         ESP_LOGE(TAG, "Sterownik silników nie jest zainicjalizowany");
@@ -242,16 +242,156 @@ esp_err_t motor_b_set_speed(int16_t speed)
 }
 
 /**
+ * @brief Stopniowo zwiększa prędkość silnika do zadanej wartości
+ * 
+ * @param motor_a_target Docelowa prędkość silnika A (-255 do 255)
+ * @param motor_b_target Docelowa prędkość silnika B (-255 do 255)
+ * @return ESP_OK jeśli sukces
+ */
+static esp_err_t motor_ramp_up_to_speed(int16_t motor_a_target, int16_t motor_b_target)
+{
+    if (!initialized) {
+        ESP_LOGE(TAG, "Sterownik silników nie jest zainicjalizowany");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // Ograniczenie zakresu prędkości
+    if (motor_a_target > 255) motor_a_target = 255;
+    if (motor_a_target < -255) motor_a_target = -255;
+    if (motor_b_target > 255) motor_b_target = 255;
+    if (motor_b_target < -255) motor_b_target = -255;
+
+    // Pobierz aktualne prędkości
+    int16_t current_a, current_b;
+    portENTER_CRITICAL(&current_speed_mutex);
+    current_a = current_speed_a;
+    current_b = current_speed_b;
+    portEXIT_CRITICAL(&current_speed_mutex);
+
+    // Jeśli prędkości są już na docelowym poziomie, nie rób nic
+    if (current_a == motor_a_target && current_b == motor_b_target) {
+        return ESP_OK;
+    }
+
+    ESP_LOGD(TAG, "Ramp-up: A %d->%d, B %d->%d", current_a, motor_a_target, current_b, motor_b_target);
+
+    // Stopniowo zwiększaj prędkość
+    int16_t step = MOTOR_RAMP_UP_STEP;
+    int16_t a = current_a;
+    int16_t b = current_b;
+
+    // Jeśli docelowa prędkość to 0 (stop), użyj ramp-down
+    if (motor_a_target == 0 && motor_b_target == 0) {
+        // Ramp-down do 0
+        while (a != 0 || b != 0) {
+            if (a > 0) {
+                a -= step;
+                if (a < 0) a = 0;
+            } else if (a < 0) {
+                a += step;
+                if (a > 0) a = 0;
+            }
+            
+            if (b > 0) {
+                b -= step;
+                if (b < 0) b = 0;
+            } else if (b < 0) {
+                b += step;
+                if (b > 0) b = 0;
+            }
+            
+            esp_err_t ret_a = motor_a_set_speed_internal(a);
+            esp_err_t ret_b = motor_b_set_speed_internal(b);
+            
+            if (ret_a != ESP_OK || ret_b != ESP_OK) {
+                ESP_LOGE(TAG, "Błąd podczas ramp-down");
+                return ESP_FAIL;
+            }
+            
+            if (a != 0 || b != 0) {
+                vTaskDelay(pdMS_TO_TICKS(MOTOR_RAMP_UP_INTERVAL_MS));
+            }
+        }
+        return ESP_OK;
+    }
+
+    while (a != motor_a_target || b != motor_b_target) {
+        // Zwiększ prędkość silnika A
+        if (a < motor_a_target) {
+            a += step;
+            if (a > motor_a_target) a = motor_a_target;
+        } else if (a > motor_a_target) {
+            a -= step;
+            if (a < motor_a_target) a = motor_a_target;
+        }
+
+        // Zwiększ prędkość silnika B
+        if (b < motor_b_target) {
+            b += step;
+            if (b > motor_b_target) b = motor_b_target;
+        } else if (b > motor_b_target) {
+            b -= step;
+            if (b < motor_b_target) b = motor_b_target;
+        }
+
+        // Ustaw nowe prędkości
+        esp_err_t ret_a = motor_a_set_speed_internal(a);
+        esp_err_t ret_b = motor_b_set_speed_internal(b);
+        
+        if (ret_a != ESP_OK || ret_b != ESP_OK) {
+            ESP_LOGE(TAG, "Błąd podczas ramp-up");
+            return ESP_FAIL;
+        }
+
+        // Jeśli jeszcze nie osiągnięto docelowej prędkości, czekaj przed następnym krokiem
+        if (a != motor_a_target || b != motor_b_target) {
+            vTaskDelay(pdMS_TO_TICKS(MOTOR_RAMP_UP_INTERVAL_MS));
+        }
+    }
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Ustawia prędkość i kierunek silnika A ze stopniowym zwiększaniem
+ * 
+ * @param speed Prędkość w zakresie -255 do 255 (ujemne = wstecz, dodatnie = przód, 0 = stop)
+ * @return ESP_OK jeśli sukces
+ */
+esp_err_t motor_a_set_speed(int16_t speed)
+{
+    int16_t current_b;
+    portENTER_CRITICAL(&current_speed_mutex);
+    current_b = current_speed_b;
+    portEXIT_CRITICAL(&current_speed_mutex);
+    return motor_ramp_up_to_speed(speed, current_b);
+}
+
+/**
+ * @brief Ustawia prędkość i kierunek silnika B ze stopniowym zwiększaniem
+ * 
+ * @param speed Prędkość w zakresie -255 do 255 (ujemne = wstecz, dodatnie = przód, 0 = stop)
+ * @return ESP_OK jeśli sukces
+ */
+esp_err_t motor_b_set_speed(int16_t speed)
+{
+    int16_t current_a;
+    portENTER_CRITICAL(&current_speed_mutex);
+    current_a = current_speed_a;
+    portEXIT_CRITICAL(&current_speed_mutex);
+    return motor_ramp_up_to_speed(current_a, speed);
+}
+
+/**
  * @brief Zatrzymuje oba silniki
  * 
  * @return ESP_OK jeśli sukces
  */
 esp_err_t motor_controller_stop(void)
 {
-    esp_err_t ret_a = motor_a_set_speed(0);
-    esp_err_t ret_b = motor_b_set_speed(0);
-    
-    return (ret_a == ESP_OK && ret_b == ESP_OK) ? ESP_OK : ESP_FAIL;
+    // Użyj ramp_up_to_speed zamiast bezpośredniego wywołania set_speed
+    // aby uniknąć podwójnego ramp-up
+    return motor_ramp_up_to_speed(0, 0);
 }
 
 /**
@@ -265,9 +405,7 @@ esp_err_t motor_controller_set_speeds(int16_t speed_a, int16_t speed_b)
 {
     // Jeśli prędkość to 0 (stop), zawsze pozwól na zatrzymanie
     if (speed_a == 0 && speed_b == 0) {
-        esp_err_t ret_a = motor_a_set_speed(speed_a);
-        esp_err_t ret_b = motor_b_set_speed(speed_b);
-        return (ret_a == ESP_OK && ret_b == ESP_OK) ? ESP_OK : ESP_FAIL;
+        return motor_controller_stop();
     }
     
     // Określ kierunek na podstawie prędkości
@@ -289,10 +427,8 @@ esp_err_t motor_controller_set_speeds(int16_t speed_a, int16_t speed_b)
         return ESP_ERR_INVALID_STATE;
     }
     
-    esp_err_t ret_a = motor_a_set_speed(speed_a);
-    esp_err_t ret_b = motor_b_set_speed(speed_b);
-    
-    return (ret_a == ESP_OK && ret_b == ESP_OK) ? ESP_OK : ESP_FAIL;
+    // Użyj stopniowego zwiększania prędkości
+    return motor_ramp_up_to_speed(speed_a, speed_b);
 }
 
 /**
@@ -337,14 +473,34 @@ esp_err_t motor_controller_move_distance(const char *direction, float distance_c
     // Wartość z config.h - użytkownik powinien to skalibrować na podstawie testów
     const float cm_per_second = MOTOR_CM_PER_SECOND_128;
     
-    // Oblicz czas jazdy w milisekundach
+    // Oblicz czas potrzebny na przyspieszenie do pełnej prędkości
+    // Szacujemy czas ramp-up na podstawie różnicy między aktualną a docelową prędkością
+    int16_t current_a, current_b;
+    portENTER_CRITICAL(&current_speed_mutex);
+    current_a = current_speed_a;
+    current_b = current_speed_b;
+    portEXIT_CRITICAL(&current_speed_mutex);
+    
+    int16_t target_speed = (strcmp(direction, "forward") == 0 || strcmp(direction, "przód") == 0) ? speed : -speed;
+    int16_t speed_diff_a = abs(target_speed - current_a);
+    int16_t speed_diff_b = abs(target_speed - current_b);
+    int16_t max_speed_diff = (speed_diff_a > speed_diff_b) ? speed_diff_a : speed_diff_b;
+    
+    // Oblicz czas ramp-up (liczba kroków * interwał)
+    uint32_t ramp_up_steps = (max_speed_diff + MOTOR_RAMP_UP_STEP - 1) / MOTOR_RAMP_UP_STEP;  // Zaokrąglenie w górę
+    uint32_t ramp_up_time_ms = ramp_up_steps * MOTOR_RAMP_UP_INTERVAL_MS;
+    
+    // Oblicz czas jazdy z pełną prędkością w milisekundach
     float time_seconds = distance_cm / cm_per_second;
     uint32_t time_ms = (uint32_t)(time_seconds * 1000.0f);
     
-    ESP_LOGI(TAG, "Przejeżdżanie %.2f cm w kierunku '%s' (prędkość=%d, czas=%lu ms, kalibracja=%.2f cm/s)",
-             distance_cm, direction, speed, time_ms, cm_per_second);
+    // Całkowity czas = czas ramp-up + czas jazdy z pełną prędkością
+    uint32_t total_time_ms = ramp_up_time_ms + time_ms;
+    
+    ESP_LOGI(TAG, "Przejeżdżanie %.2f cm w kierunku '%s' (prędkość=%d, ramp-up=%lu ms, czas jazdy=%lu ms, całkowity=%lu ms, kalibracja=%.2f cm/s)",
+             distance_cm, direction, speed, ramp_up_time_ms, time_ms, total_time_ms, cm_per_second);
 
-    // Ustaw kierunek i prędkość
+    // Ustaw kierunek i prędkość (z automatycznym ramp-up)
     if (strcmp(direction, "forward") == 0 || strcmp(direction, "przód") == 0) {
         if (motor_controller_set_speeds(speed, speed) != ESP_OK) {
             return ESP_ERR_INVALID_STATE;  // Przeszkoda wykryta
@@ -359,7 +515,8 @@ esp_err_t motor_controller_move_distance(const char *direction, float distance_c
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Czekaj przez obliczony czas, ale sprawdzaj przeszkody w trakcie
+    // Czekaj przez obliczony czas (ramp-up już się odbył, teraz czekamy na jazdę z pełną prędkością)
+    // ale sprawdzaj przeszkody w trakcie
     uint32_t elapsed_ms = 0;
     uint32_t check_interval = 50;  // Sprawdzaj co 50ms
     
@@ -376,7 +533,7 @@ esp_err_t motor_controller_move_distance(const char *direction, float distance_c
         elapsed_ms += delay_time;
     }
 
-    // Zatrzymaj silniki
+    // Zatrzymaj silniki (z automatycznym ramp-down do 0)
     motor_controller_stop();
     
     ESP_LOGI(TAG, "Przejazd zakończony");

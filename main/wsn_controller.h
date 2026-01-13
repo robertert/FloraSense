@@ -61,3 +61,14 @@ void obstacle_monitor_task(void *param);
  */
 bool obstacle_is_detected(const char *direction);
 
+/**
+ * @brief Wykonuje pojedyncze sprawdzenie światła i ruch w kierunku lepszego światła
+ * 
+ * Funkcja wykonuje jedno sprawdzenie światła z obu czujników i przesuwa urządzenie
+ * w kierunku lepszego światła, jeśli różnica przekracza próg. Po wykonaniu ruchu
+ * uruchamia pętlę kontynuującą sprawdzanie i poruszanie się aż do osiągnięcia progu
+ * światła lub wyłączenia automatycznego poruszania się.
+ * 
+ * @return ESP_OK jeśli wykonano ruch i uruchomiono pętlę sprawdzania, ESP_FAIL jeśli błąd lub różnica za mała
+ */
+esp_err_t wsn_controller_single_light_search(void);

@@ -10,7 +10,6 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
-#include "esp_http_client.h"
 #include "esp_netif.h"
 #include "mqtt_client.h" 
 #include "lwip/err.h"
@@ -19,20 +18,16 @@
 #include "flora_mqtt.h"
 #include "config.h"
 #include "wifi.h"
-//#include "itag_client.h"
-#include "http_client.h"
-#include "ble_client.h"
-#include "ble_server.h"
 #include "sensors/sensor_soil.h"
 #include "sensors/sensor_light.h"
 #include "sensors/sensor_temp.h"
-#include "bmp280.h"
 #include "sensor_hall.h"
 #include "sensor_dock.h"
 #include "sensor_ir.h"
 #include "motor_controller.h"
 #include "wsn_controller.h"
 #include "water_controller.h"
+#include "ble_dock_client.h"
 #include "flora_mqtt.h"
 #include "esp_log.h"
 
@@ -50,18 +45,6 @@ void nvs_init(void)
 static void wifi_init_task(void *param)
 {
     wifi_init();
-    vTaskDelete(NULL);
-}
-
-static void ble_server_task(void *param)
-{
-    ble_server_init();
-    vTaskDelete(NULL);
-}
-
-static void ble_client_task(void *param)
-{
-    init_ble();
     vTaskDelete(NULL);
 }
 
@@ -289,7 +272,7 @@ void app_main(void)
     nvs_init();
     
     // Inicjalizacja WiFi (w osobnym tasku)
-    xTaskCreate(wifi_init_task, "wifi_init_task", 4096, NULL, 5, NULL);
+    xTaskCreate(wifi_init_task, "wifi_init_task", 3072, NULL, 5, NULL);
     
     // Poczekaj chwilę na inicjalizację WiFi przed uruchomieniem MQTT
     vTaskDelay(pdMS_TO_TICKS(2000));
@@ -298,7 +281,7 @@ void app_main(void)
     mqtt_app_start();
     
     // Task publikujący dane z czujników przez MQTT
-    xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 4096, NULL, 5, NULL);
+    xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 3072, NULL, 5, NULL);
     
     // Poczekaj na inicjalizację czujników przed uruchomieniem WSN
     vTaskDelay(pdMS_TO_TICKS(3000));
@@ -318,15 +301,18 @@ void app_main(void)
     wsn_config.light_sensor_1 = mqtt_get_light_config_2();  // Fizycznie z przodu
     wsn_config.light_sensor_2 = mqtt_get_light_config_1();  // Fizycznie z tyłu
     wsn_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();  // Czujnik IR 2 z przodu
-    wsn_config.base_speed = 150;                              // Bazowa prędkość silników
+    wsn_config.base_speed = 128;                              // Bazowa prędkość silników
     wsn_config.light_threshold_lux = 10.0f;                   // Próg różnicy światła (10 lux)
     wsn_config.check_interval_ms = 200;                       // Sprawdzanie co 200ms
-    wsn_config.move_distance_cm = 5.0f;                       // Przesunięcie o 5cm
+    wsn_config.move_distance_cm = 2.5f;                       // Przesunięcie o 5cm
     wsn_config.wait_after_threshold_ms = 5 * 60 * 1000;      // Czekaj 5 minut po osiągnięciu progu
-    xTaskCreate(wsn_controller_task, "wsn_controller_task", 4096, &wsn_config, 5, NULL);
+    xTaskCreate(wsn_controller_task, "wsn_controller_task", 3072, &wsn_config, 5, NULL);
     
     // Task kontrolera automatycznego podlewania
-    xTaskCreate(water_controller_task, "water_controller_task", 4096, NULL, 4, NULL);
+    xTaskCreate(water_controller_task, "water_controller_task", 3072, NULL, 4, NULL);
+
+    // Klient dokowania BLE (połączenie z FloraDock do podlewania)
+    ble_dock_client_init();
     /*
     sensor_temp_init();
     sensor_temp_reading_t reading;

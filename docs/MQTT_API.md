@@ -423,7 +423,34 @@ mosquitto_pub -h 172.20.10.2 -p 1883 \
 
 ---
 
-### 2. Komenda WATER - Podlewanie (przygotowana na przyszłość)
+### 2. Komenda LIGHT_SEARCH - Pojedyncze sprawdzenie światła
+
+**Topic:** `florasense/{user_id}/{device_id}/cmd/light_search`
+
+**Format:** Dowolny payload (ignorowany) lub pusty
+
+**Opis:** Wykonuje pojedyncze sprawdzenie światła z obu czujników i przesuwa urządzenie w kierunku lepszego światła, jeśli różnica przekracza próg ustawiony w konfiguracji.
+
+**Zachowanie:**
+
+- Sprawdza światło z obu czujników (przód i tył)
+- Oblicza różnicę natężenia światła
+- Jeśli różnica > próg (z konfiguracji `light_threshold`), przesuwa się o 5cm w kierunku lepszego światła
+- Jeśli różnica <= próg, nie wykonuje ruchu
+
+**Przykład:**
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/default_user/8813BF6983D0/cmd/light_search" \
+  -m ""
+```
+
+**Uwaga:** To jest pojedyncze sprawdzenie - nie wchodzi w pętlę. Do ciągłego automatycznego poruszania się w kierunku światła użyj konfiguracji `light_movement_enabled: true` w `/config/device`.
+
+---
+
+### 3. Komenda WATER - Podlewanie
 
 **Topic:** `florasense/{user_id}/{device_id}/cmd/water`
 
@@ -437,9 +464,17 @@ mosquitto_pub -h 172.20.10.2 -p 1883 \
 
 **Pola:**
 
-- `duration` (int) - Czas podlewania w milisekundach
+- `duration` (int, opcjonalne) - Czas podlewania w milisekundach. Jeśli >= 1000ms, wykonuje pojedynczy impuls bez pętli. Jeśli < 1000ms lub brak, uruchamia pętlę z wieloma impulsami po 100ms.
 
-**Przykład:**
+**Zachowanie:**
+
+- **Pusty payload** lub brak `duration` → uruchamia zwykłą pętlę podlewania (100ms impulsy, sprawdza wilgotność)
+- **`{"duration": 5000}`** (>= 1000ms) → pojedynczy impuls 5000ms bez pętli
+- **`{"duration": 100}`** (< 1000ms) → pętla z wieloma impulsami po 100ms
+
+**Przykłady:**
+
+Pojedynczy impuls 5 sekund:
 
 ```bash
 mosquitto_pub -h 172.20.10.2 -p 1883 \
@@ -447,7 +482,15 @@ mosquitto_pub -h 172.20.10.2 -p 1883 \
   -m '{"duration":5000}'
 ```
 
-**Uwaga:** Obecnie komenda jest tylko logowana, nie wykonuje żadnej akcji.
+Zwykła pętla podlewania (pusty payload):
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/default_user/8813BF6983D0/cmd/water" \
+  -m ""
+```
+
+**Opis:** Komenda najpierw jedzie do tyłu do ściany (używając czujnika IR), a następnie uruchamia cykl podlewania przez BLE do FloraDock. W trybie pętli sprawdza wilgotność gleby i wysyła impulsy wody aż do osiągnięcia progu wilgotności.
 
 ---
 
@@ -576,7 +619,9 @@ mosquitto_pub -h 172.20.10.2 -p 1883 \
   "light_movement_enabled": true,
   "light_threshold": 500.0,
   "soil_humidity_threshold": 50.0,
-  "water_enabled": true
+  "water_enabled": true,
+  "water_check_interval_ms": 600000,
+  "light_check_interval_ms": 200
 }
 ```
 
@@ -585,11 +630,13 @@ mosquitto_pub -h 172.20.10.2 -p 1883 \
 - `light_movement_enabled` (boolean, opcjonalne) - Włącza/wyłącza automatyczne poruszanie się w kierunku światła
 - `light_threshold` (float, opcjonalne) - Próg różnicy światła w lux dla WSN controller (domyślnie 10.0)
 - `soil_humidity_threshold` (float, opcjonalne) - Próg wilgotności gleby w procentach dla automatycznego podlewania (domyślnie 50.0)
-- `water_enabled` (boolean, opcjonalne) - Włącza/wyłącza automatyczne podlewanie (gdy wilgotność < próg, jedzie do przodu do ściany)
+- `water_enabled` (boolean, opcjonalne) - Włącza/wyłącza automatyczne podlewanie (gdy wilgotność < próg, jedzie do tyłu do ściany)
+- `water_check_interval_ms` (int, opcjonalne) - Interwał sprawdzania wilgotności gleby w milisekundach (1000-3600000, czyli 1 sekunda - 60 minut, domyślnie 600000 = 10 minut)
+- `light_check_interval_ms` (int, opcjonalne) - Interwał sprawdzania światła dla WSN controller w milisekundach (50-60000, czyli 50ms - 60 sekund, domyślnie 200ms)
 
-**Opis:** Włącza lub wyłącza funkcję automatycznego poruszania się urządzenia w kierunku światła (light-seeking movement).
+**Opis:** Konfiguruje parametry urządzenia: automatyczne poruszanie się w kierunku światła, progi, interwały sprawdzania.
 
-**Przykład:**
+**Przykłady:**
 
 Włączenie automatycznego poruszania się:
 
@@ -607,11 +654,37 @@ mosquitto_pub -h 172.20.10.2 -p 1883 \
   -m '{"light_movement_enabled":false}'
 ```
 
+Zmiana interwału sprawdzania wilgotności na 5 minut:
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/device" \
+  -m '{"water_check_interval_ms":300000}'
+```
+
+Zmiana interwału sprawdzania światła na 500ms:
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/device" \
+  -m '{"light_check_interval_ms":500}'
+```
+
+Kompleksowa konfiguracja:
+
+```bash
+mosquitto_pub -h 172.20.10.2 -p 1883 \
+  -t "florasense/8813BF6983D0/config/device" \
+  -m '{"light_movement_enabled":true,"light_threshold":15.0,"soil_humidity_threshold":45.0,"water_enabled":true,"water_check_interval_ms":300000,"light_check_interval_ms":300}'
+```
+
 **Uwaga:**
 
 - Konfiguracja urządzenia jest zapisywana w NVS i będzie zachowana po restarcie ESP32.
 - Gdy `light_movement_enabled` jest ustawione na `false`, automatyczne poruszanie się w kierunku światła (WSN controller) jest wyłączone i silniki są zatrzymywane.
 - Gdy `light_movement_enabled` jest ustawione na `true`, urządzenie automatycznie porusza się w kierunku lepszego światła zgodnie z konfiguracją WSN controller.
+- `water_check_interval_ms` kontroluje jak często water_controller sprawdza wilgotność gleby (domyślnie 600000ms = 10 minut)
+- `light_check_interval_ms` kontroluje jak często WSN controller sprawdza światło między ruchami (domyślnie 200ms)
 
 ---
 
@@ -820,12 +893,38 @@ I (xxx) MOTOR_CTRL: Przejeżdżanie 20.00 cm w kierunku 'forward' (prędkość=1
 
 ## Changelog
 
+- **v1.7** - Konfigurowalne interwały sprawdzania
+
+  - Dodano `water_check_interval_ms` do konfiguracji urządzenia - interwał sprawdzania wilgotności gleby (1000-3600000ms)
+  - Dodano `light_check_interval_ms` do konfiguracji urządzenia - interwał sprawdzania światła dla WSN (50-60000ms)
+  - Interwały są zapisywane w NVS i zachowane po restarcie
+  - water_controller używa teraz wartości z MQTT zamiast stałej
+  - WSN controller używa wartości z MQTT z fallbackiem do konfiguracji
+
+- **v1.6** - Komendy podlewania i light search
+
+  - Dodano komendę `/cmd/light_search` - pojedyncze sprawdzenie światła i ruch w kierunku lepszego światła
+  - Rozszerzono komendę `/cmd/water`:
+    - Pusty payload → zwykła pętla podlewania (100ms impulsy)
+    - `{"duration": >= 1000ms}` → pojedynczy impuls bez pętli
+    - `{"duration": < 1000ms}` → pętla z wieloma impulsami
+  - Komenda water najpierw jedzie do tyłu do ściany, potem uruchamia podlewanie
+  - Naprawiono logikę Hall w BLE dock - używa read zamiast notify
+  - Naprawiono obsługę błędów w water_controller - ESP_ERR_INVALID_STATE (przeszkoda) traktowany jako sukces
+
+- **v1.5** - Ulepszenia podlewania
+
+  - Zmieniono kierunek jazdy w water_controller z przodu na tył
+  - Dodano funkcję `water_controller_move_to_wall()` - wyodrębniona logika jazdy do ściany
+  - Komenda water przez MQTT używa teraz tej samej logiki jazdy do ściany
+  - Odwrócono kolejność ruchów w ble_dock_run_watering_cycle (przód → tył)
+
 - **v1.4** - Rozszerzenie konfiguracji i automatyczne podlewanie
 
   - Dodano `battery_min` do konfiguracji alarmów - konfigurowalny próg niskiego poziomu baterii
   - LED ostrzegawczy baterii używa teraz dynamicznego progu z konfiguracji alarmów
   - Rozszerzono konfigurację urządzenia o `light_threshold`, `soil_humidity_threshold`, `water_enabled`
-  - Implementacja automatycznego podlewania - jazda do przodu przy niskiej wilgotności gleby
+  - Implementacja automatycznego podlewania - jazda do tyłu przy niskiej wilgotności gleby
   - WSN controller używa teraz `light_threshold` z konfiguracji MQTT
 
 - **v1.3** - Dodano automatyczne publikowanie alarmów i integrację z WSN controller

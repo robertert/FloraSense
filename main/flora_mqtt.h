@@ -16,6 +16,8 @@ bool mqtt_get_light_movement_enabled(void);  // Czy automatyczne poruszanie się
 float mqtt_get_light_threshold(void);  // Próg światła dla WSN controller
 float mqtt_get_soil_humidity_threshold(void);  // Próg wilgotności gleby dla automatycznego podlewania
 bool mqtt_get_water_enabled(void);  // Czy automatyczne podlewanie jest włączone
+uint32_t mqtt_get_water_check_interval_ms(void);  // Interwał sprawdzania wilgotności gleby (ms)
+uint32_t mqtt_get_light_check_interval_ms(void);  // Interwał sprawdzania światła dla WSN (ms)
 
 #endif
 

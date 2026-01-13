@@ -101,7 +101,7 @@
 
 // Kalibracja silników (do ustawienia na podstawie testów)
 // Ile centymetrów robot przejeżdża w ciągu 1 sekundy przy prędkości 128
-#define MOTOR_CM_PER_SECOND_128           24.4f  // TODO: Skalibrować!
+#define MOTOR_CM_PER_SECOND_128          24.0f  // TODO: Skalibrować!
 // Silnik B
 #define MOTOR_B_PWM_GPIO                  GPIO_NUM_4   // PWMB - prędkość silnika B
 #define MOTOR_B_IN1_GPIO                  GPIO_NUM_16  // BIN1 - kierunek silnika B
@@ -109,3 +109,7 @@
 // PWM
 #define MOTOR_PWM_FREQ_HZ                 5000         // Częstotliwość PWM
 #define MOTOR_PWM_RESOLUTION              LEDC_TIMER_8_BIT  // Rozdzielczość PWM (0-255)
+
+// Konfiguracja stopniowego zwiększania prędkości (ramp-up)
+#define MOTOR_RAMP_UP_STEP                5           // Krok zwiększania prędkości przy każdym wywołaniu
+#define MOTOR_RAMP_UP_INTERVAL_MS         20          // Interwał aktualizacji prędkości podczas przyspieszania (ms)

@@ -125,21 +125,33 @@ void wsn_controller_task(void *param)
 
     while (1) {
         // Sprawdź czy automatyczne poruszanie się w kierunku światła jest włączone
-        if (!mqtt_get_light_movement_enabled()) {
+        bool movement_enabled = mqtt_get_light_movement_enabled();
+        if (!movement_enabled) {
             // Jeśli wyłączone, zatrzymaj silniki i czekaj
-            ESP_LOGI(TAG, "Automatyczne poruszanie się w kierunku światła jest wyłączone - zatrzymywanie");
+            ESP_LOGI(TAG, "Automatyczne poruszanie się w kierunku światła jest wyłączone (light_movement_enabled=false) - zatrzymywanie");
             vTaskDelay(pdMS_TO_TICKS(config->wait_after_threshold_ms));
             continue;
         }
+        
+        // Loguj tylko gdy wartość się zmienia na true (aby uniknąć spamowania logów)
+        static bool last_movement_enabled = false;
+        if (movement_enabled && !last_movement_enabled) {
+            ESP_LOGI(TAG, "Automatyczne poruszanie się w kierunku światła zostało włączone (light_movement_enabled=true)");
+        }
+        last_movement_enabled = movement_enabled;
 
         // Uwaga: Sprawdzanie przeszkód jest obsługiwane przez osobny task obstacle_monitor_task
         // który ma najwyższy priorytet i zatrzymuje silniki niezależnie od tego taska
         
         // Jeśli jesteśmy w trybie oczekiwania, czekaj
         if (waiting_mode) {
+            uint32_t check_interval = mqtt_get_light_check_interval_ms();
+            if (check_interval == 0) {
+                check_interval = config->wait_after_threshold_ms;  // Fallback do konfiguracji
+            }
             ESP_LOGI(TAG, "Tryb oczekiwania - czekam %lu ms przed następnym sprawdzeniem",
-                     config->wait_after_threshold_ms);
-            vTaskDelay(pdMS_TO_TICKS(config->wait_after_threshold_ms));
+                     check_interval);
+            vTaskDelay(pdMS_TO_TICKS(check_interval));
             waiting_mode = false;
             ESP_LOGI(TAG, "Koniec oczekiwania - rozpoczynam nowe sprawdzenie");
             continue;
@@ -223,7 +235,9 @@ void wsn_controller_task(void *param)
         }
 
         // Czekaj przed następnym sprawdzeniem (jeśli nie jesteśmy w trybie oczekiwania)
+        // Użyj interwału z konfiguracji MQTT jeśli dostępny, w przeciwnym razie użyj z konfiguracji
         if (!waiting_mode) {
+            
             vTaskDelay(pdMS_TO_TICKS(config->check_interval_ms));
         }
     }
@@ -389,3 +403,179 @@ bool obstacle_is_detected(const char *direction)
     return front_detected || back_detected;
 }
 
+/**
+ * @brief Wykonuje pojedyncze sprawdzenie światła i ruch w kierunku lepszego światła
+ * Po wykonaniu ruchu uruchamia pętlę kontynuującą sprawdzanie aż do osiągnięcia progu
+ */
+esp_err_t wsn_controller_single_light_search(void)
+{
+    if (!initialized) {
+        ESP_LOGW(TAG, "Kontroler WSN nie jest zainicjalizowany");
+        return ESP_FAIL;
+    }
+
+    // Sprawdź światło z obu czujników
+    sensor_light_reading_t light_1 = {0};
+    sensor_light_reading_t light_2 = {0};
+    bool light_1_ok = false;
+    bool light_2_ok = false;
+
+    if (sensor_light_is_initialized(current_config.light_sensor_1)) {
+        if (sensor_light_read(current_config.light_sensor_1, &light_1) == ESP_OK) {
+            light_1_ok = true;
+        } else {
+            ESP_LOGW(TAG, "Błąd odczytu czujnika światła 1");
+        }
+    }
+
+    if (sensor_light_is_initialized(current_config.light_sensor_2)) {
+        if (sensor_light_read(current_config.light_sensor_2, &light_2) == ESP_OK) {
+            light_2_ok = true;
+        } else {
+            ESP_LOGW(TAG, "Błąd odczytu czujnika światła 2");
+        }
+    }
+
+    // Jeśli oba czujniki działają, podejmij decyzję
+    if (light_1_ok && light_2_ok) {
+        float diff = light_1.lux - light_2.lux;
+        float abs_diff = fabsf(diff);
+
+        ESP_LOGI(TAG, "Pojedyncze sprawdzenie światła: Światło 1: %.2f lux, Światło 2: %.2f lux, Różnica: %.2f lux",
+                 light_1.lux, light_2.lux, diff);
+
+        // Użyj progu z konfiguracji MQTT jeśli jest dostępny, w przeciwnym razie użyj z konfiguracji
+        float threshold = mqtt_get_light_threshold();
+        if (threshold <= 0) {
+            threshold = current_config.light_threshold_lux;  // Fallback do konfiguracji
+        }
+
+        if (abs_diff > threshold) {
+            const char *direction = NULL;
+            
+            if (diff > 0) {
+                // Światło 1 jest lepsze (przód) - przesuń się do przodu
+                direction = "forward";
+                ESP_LOGI(TAG, "Światło 1 lepsze (%.2f > %.2f lux) - przesuwam się %.2f cm do przodu",
+                         light_1.lux, light_2.lux, current_config.move_distance_cm);
+            } else {
+                // Światło 2 jest lepsze (tył) - przesuń się do tyłu
+                direction = "backward";
+                ESP_LOGI(TAG, "Światło 2 lepsze (%.2f > %.2f lux) - przesuwam się %.2f cm do tyłu",
+                         light_2.lux, light_1.lux, current_config.move_distance_cm);
+            }
+
+            // Przesuń się o określony dystans
+            esp_err_t ret = motor_controller_move_distance(direction, current_config.move_distance_cm, current_config.base_speed);
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Błąd przesunięcia: %s", esp_err_to_name(ret));
+                return ESP_FAIL;
+            } else {
+                ESP_LOGI(TAG, "Przesunięcie zakończone - uruchamiam pętlę sprawdzania");
+                
+                // Uruchom pętlę kontynuującą sprawdzanie
+                // Pętla będzie działać aż różnica światła będzie mniejsza niż próg
+                bool waiting_mode = false;
+                
+                while (1) {
+                    // Sprawdź czy automatyczne poruszanie się w kierunku światła jest włączone
+                    
+                    // Jeśli jesteśmy w trybie oczekiwania, zakończ pętlę
+                    if (waiting_mode) {
+                        ESP_LOGI(TAG, "Osiągnięto próg światła - kończę pętlę sprawdzania");
+                        break;
+                    }
+                    
+                    // Krótkie opóźnienie po przesunięciu przed następnym sprawdzeniem
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                    
+                    // Sprawdź światło z obu czujników
+                    light_1_ok = false;
+                    light_2_ok = false;
+                    
+                    if (sensor_light_is_initialized(current_config.light_sensor_1)) {
+                        if (sensor_light_read(current_config.light_sensor_1, &light_1) == ESP_OK) {
+                            light_1_ok = true;
+                        } else {
+                            ESP_LOGW(TAG, "Błąd odczytu czujnika światła 1");
+                        }
+                    }
+                    
+                    if (sensor_light_is_initialized(current_config.light_sensor_2)) {
+                        if (sensor_light_read(current_config.light_sensor_2, &light_2) == ESP_OK) {
+                            light_2_ok = true;
+                        } else {
+                            ESP_LOGW(TAG, "Błąd odczytu czujnika światła 2");
+                        }
+                    }
+                    
+                    // Jeśli oba czujniki działają, podejmij decyzję
+                    if (light_1_ok && light_2_ok) {
+                        diff = light_1.lux - light_2.lux;
+                        abs_diff = fabsf(diff);
+                        
+                        ESP_LOGI(TAG, "Światło 1: %.2f lux, Światło 2: %.2f lux, Różnica: %.2f lux",
+                                 light_1.lux, light_2.lux, diff);
+                        
+                        // Użyj progu z konfiguracji MQTT jeśli jest dostępny
+                        threshold = mqtt_get_light_threshold();
+                        if (threshold <= 0) {
+                            threshold = current_config.light_threshold_lux;  // Fallback do konfiguracji
+                        }
+                        
+                        if (abs_diff > threshold) {
+                            // Różnica jest większa niż próg - przesuń się
+                            if (diff > 0) {
+                                direction = "forward";
+                                ESP_LOGI(TAG, "Światło 1 lepsze (%.2f > %.2f lux) - przesuwam się %.2f cm do przodu",
+                                         light_1.lux, light_2.lux, current_config.move_distance_cm);
+                            } else {
+                                direction = "backward";
+                                ESP_LOGI(TAG, "Światło 2 lepsze (%.2f > %.2f lux) - przesuwam się %.2f cm do tyłu",
+                                         light_2.lux, light_1.lux, current_config.move_distance_cm);
+                            }
+                            
+                            // Przesuń się o określony dystans
+                            ret = motor_controller_move_distance(direction, current_config.move_distance_cm, current_config.base_speed);
+                            if (ret != ESP_OK) {
+                                ESP_LOGE(TAG, "Błąd przesunięcia: %s", esp_err_to_name(ret));
+                            } else {
+                                ESP_LOGI(TAG, "Przesunięcie zakończone - sprawdzam ponownie...");
+                            }
+                        } else {
+                            // Różnica jest mała - osiągnięto próg, zakończ pętlę
+                            ESP_LOGI(TAG, "Różnica światła zbyt mała (%.2f lux <= %.2f lux) - osiągnięto próg, kończę pętlę sprawdzania",
+                                     abs_diff, threshold);
+                            motor_controller_stop();
+                            waiting_mode = true;
+                        }
+                    } else {
+                        // Jeśli któryś czujnik nie działa, zatrzymaj się i zakończ pętlę
+                        ESP_LOGW(TAG, "Jeden z czujników światła nie działa - kończę pętlę sprawdzania");
+                        motor_controller_stop();
+                        break;
+                    }
+                    
+                    // Czekaj przed następnym sprawdzeniem (jeśli nie jesteśmy w trybie oczekiwania)
+                    if (!waiting_mode) {
+                        uint32_t check_interval = mqtt_get_light_check_interval_ms();
+                        if (check_interval == 0) {
+                            check_interval = current_config.check_interval_ms;  // Fallback do konfiguracji
+                        }
+                        vTaskDelay(pdMS_TO_TICKS(check_interval));
+                    }
+                }
+                
+                ESP_LOGI(TAG, "Pętla sprawdzania zakończona");
+                return ESP_OK;
+            }
+        } else {
+            ESP_LOGI(TAG, "Różnica światła zbyt mała (%.2f lux <= %.2f lux) - brak ruchu",
+                     abs_diff, threshold);
+            return ESP_FAIL;
+        }
+    } else {
+        ESP_LOGW(TAG, "Jeden z czujników światła nie działa - brak ruchu");
+        return ESP_FAIL;
+    }
+}

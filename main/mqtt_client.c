@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
@@ -30,6 +31,9 @@
 #include "wifi.h"
 #include "config.h"
 #include "cJSON.h"
+#include "ble_dock_client.h"
+#include "water_controller.h"
+#include "wsn_controller.h"
 
 static const char *TAG = "flora-mqtt";
 
@@ -85,6 +89,8 @@ static bool light_movement_enabled = false;
 static float light_threshold = 10.0f;  // Domyślny próg światła (lux)
 static float soil_humidity_threshold = 50.0f;  // Domyślny próg wilgotności gleby (%)
 static bool water_enabled = false;  // Domyślnie wyłączone
+static uint32_t water_check_interval_ms = 600000;  // Domyślny interwał sprawdzania wilgotności (10 minut)
+static uint32_t light_check_interval_ms = 300000;     // Domyślny interwał sprawdzania światła (200ms)
 
 static esp_mqtt_client_handle_t client = NULL;
 static bool mqtt_connected = false;
@@ -156,6 +162,16 @@ float mqtt_get_soil_humidity_threshold(void)
 bool mqtt_get_water_enabled(void)
 {
     return water_enabled;
+}
+
+uint32_t mqtt_get_water_check_interval_ms(void)
+{
+    return water_check_interval_ms;
+}
+
+uint32_t mqtt_get_light_check_interval_ms(void)
+{
+    return light_check_interval_ms;
 }
 
 /* -------------------------------------------------------
@@ -261,13 +277,21 @@ static void load_light_movement_from_nvs(void)
     nvs_handle_t handle;
     if (nvs_open("storage", NVS_READONLY, &handle) == ESP_OK) {
         uint8_t enabled = 0;
-        if (nvs_get_u8(handle, "light_movement_enabled", &enabled) == ESP_OK) {
+        esp_err_t ret = nvs_get_u8(handle, "light_movement_enabled", &enabled);
+        char timestamp[64];
+        get_timestamp_str(timestamp, sizeof(timestamp));
+        if (ret == ESP_OK) {
             light_movement_enabled = (enabled != 0);
-            char timestamp[64];
-            get_timestamp_str(timestamp, sizeof(timestamp));
             ESP_LOGI(TAG, "%s Loaded light_movement_enabled from NVS: %s", timestamp, light_movement_enabled ? "true" : "false");
+        } else {
+            // Wartość nie istnieje w NVS - użyj domyślnej (false)
+            ESP_LOGI(TAG, "%s light_movement_enabled not found in NVS (ret=%s), using default: false", timestamp, esp_err_to_name(ret));
         }
         nvs_close(handle);
+    } else {
+        char timestamp[64];
+        get_timestamp_str(timestamp, sizeof(timestamp));
+        ESP_LOGW(TAG, "%s Failed to open NVS for reading light_movement_enabled", timestamp);
     }
 }
 
@@ -311,11 +335,23 @@ static void load_device_config_from_nvs(void)
             water_enabled = (enabled != 0);
         }
         
+        // water_check_interval_ms
+        uint32_t interval = 600000;
+        if (nvs_get_u32(handle, "water_check_interval_ms", &interval) == ESP_OK) {
+            water_check_interval_ms = interval;
+        }
+        
+        // light_check_interval_ms
+        interval = 300000;
+        if (nvs_get_u32(handle, "light_check_interval_ms", &interval) == ESP_OK) {
+            light_check_interval_ms = interval;
+        }
+        
         nvs_close(handle);
         char timestamp[64];
         get_timestamp_str(timestamp, sizeof(timestamp));
-        ESP_LOGI(TAG, "%s Loaded device config from NVS: light_threshold=%.1f, soil_humidity_threshold=%.1f, water_enabled=%s",
-                 timestamp, light_threshold, soil_humidity_threshold, water_enabled ? "true" : "false");
+        ESP_LOGI(TAG, "%s Loaded device config from NVS: light_threshold=%.1f, soil_humidity_threshold=%.1f, water_enabled=%s, water_check_interval=%lu ms, light_check_interval=%lu ms",
+                 timestamp, light_threshold, soil_humidity_threshold, water_enabled ? "true" : "false", water_check_interval_ms, light_check_interval_ms);
     }
 }
 
@@ -332,12 +368,18 @@ static void save_device_config_to_nvs(void)
         // water_enabled
         nvs_set_u8(handle, "water_enabled", water_enabled ? 1 : 0);
         
+        // water_check_interval_ms
+        nvs_set_u32(handle, "water_check_interval_ms", water_check_interval_ms);
+        
+        // light_check_interval_ms
+        nvs_set_u32(handle, "light_check_interval_ms", light_check_interval_ms);
+        
         nvs_commit(handle);
         nvs_close(handle);
         char timestamp[64];
         get_timestamp_str(timestamp, sizeof(timestamp));
-        ESP_LOGI(TAG, "%s Saved device config to NVS: light_threshold=%.1f, soil_humidity_threshold=%.1f, water_enabled=%s",
-                 timestamp, light_threshold, soil_humidity_threshold, water_enabled ? "true" : "false");
+        ESP_LOGI(TAG, "%s Saved device config to NVS: light_threshold=%.1f, soil_humidity_threshold=%.1f, water_enabled=%s, water_check_interval=%lu ms, light_check_interval=%lu ms",
+                 timestamp, light_threshold, soil_humidity_threshold, water_enabled ? "true" : "false", water_check_interval_ms, light_check_interval_ms);
     }
 }
 
@@ -382,6 +424,7 @@ static void subscribe_to_commands(void)
 
     char water_cmd[128];
     char move_cmd[128];
+    char light_search_cmd[128];
     char user_cfg[128];
     char alarm_cfg[128];
     char measurement_cfg[128];
@@ -393,6 +436,10 @@ static void subscribe_to_commands(void)
 
     snprintf(move_cmd, sizeof(move_cmd),
              "florasense/%s/%s/cmd/move",
+             user_id, device_id);
+
+    snprintf(light_search_cmd, sizeof(light_search_cmd),
+             "florasense/%s/%s/cmd/light_search",
              user_id, device_id);
 
     snprintf(user_cfg, sizeof(user_cfg),
@@ -413,6 +460,7 @@ static void subscribe_to_commands(void)
 
     esp_mqtt_client_subscribe(client, water_cmd, 1);
     esp_mqtt_client_subscribe(client, move_cmd, 1);
+    esp_mqtt_client_subscribe(client, light_search_cmd, 1);
     esp_mqtt_client_subscribe(client, user_cfg, 1);
     esp_mqtt_client_subscribe(client, alarm_cfg, 1);
     esp_mqtt_client_subscribe(client, measurement_cfg, 1);
@@ -420,8 +468,8 @@ static void subscribe_to_commands(void)
 
     char timestamp[64];
     get_timestamp_str(timestamp, sizeof(timestamp));
-    ESP_LOGI(TAG, "%s Subscribed to: %s, %s, %s, %s, %s, %s",
-             timestamp, water_cmd, move_cmd, user_cfg, alarm_cfg, measurement_cfg, device_cfg);
+    ESP_LOGI(TAG, "%s Subscribed to: %s, %s, %s, %s, %s, %s, %s",
+             timestamp, water_cmd, move_cmd, light_search_cmd, user_cfg, alarm_cfg, measurement_cfg, device_cfg);
 }
 
 /* -------------------------------------------------------
@@ -595,9 +643,11 @@ static void mqtt_event_handler_cb(void *handler_args,
 
                     cJSON *enabled = cJSON_GetObjectItemCaseSensitive(json, "light_movement_enabled");
                     if (cJSON_IsBool(enabled)) {
+                        bool old_value = light_movement_enabled;
                         light_movement_enabled = cJSON_IsTrue(enabled);
                         save_light_movement_to_nvs();
-                        ESP_LOGI(TAG, "%s Light movement enabled updated: %s", timestamp, light_movement_enabled ? "true" : "false");
+                        ESP_LOGI(TAG, "%s Light movement enabled updated: %s -> %s (saved to NVS)", 
+                                 timestamp, old_value ? "true" : "false", light_movement_enabled ? "true" : "false");
                         config_updated = true;
                     }
 
@@ -622,6 +672,30 @@ static void mqtt_event_handler_cb(void *handler_args,
                         ESP_LOGI(TAG, "%s Water enabled updated: %s", timestamp, water_enabled ? "true" : "false");
                     }
 
+                    cJSON *water_interval = cJSON_GetObjectItemCaseSensitive(json, "water_check_interval_ms");
+                    if (cJSON_IsNumber(water_interval)) {
+                        uint32_t new_interval = (uint32_t)water_interval->valueint;
+                        if (new_interval >= 1000 && new_interval <= 3600000) {  // Walidacja: 1s - 60min
+                            water_check_interval_ms = new_interval;
+                            config_updated = true;
+                            ESP_LOGI(TAG, "%s Water check interval updated: %lu ms", timestamp, water_check_interval_ms);
+                        } else {
+                            ESP_LOGW(TAG, "%s Invalid water_check_interval_ms: %lu (must be 1000-3600000)", timestamp, new_interval);
+                        }
+                    }
+
+                    cJSON *light_interval = cJSON_GetObjectItemCaseSensitive(json, "light_check_interval_ms");
+                    if (cJSON_IsNumber(light_interval)) {
+                        uint32_t new_interval = (uint32_t)light_interval->valueint;
+                        if (new_interval >= 50 && new_interval <= 60000) {  // Walidacja: 50ms - 60s
+                            light_check_interval_ms = new_interval;
+                            config_updated = true;
+                            ESP_LOGI(TAG, "%s Light check interval updated: %lu ms", timestamp, light_check_interval_ms);
+                        } else {
+                            ESP_LOGW(TAG, "%s Invalid light_check_interval_ms: %lu (must be 50-60000)", timestamp, new_interval);
+                        }
+                    }
+
                     if (config_updated) {
                         save_device_config_to_nvs();
                     }
@@ -637,6 +711,90 @@ static void mqtt_event_handler_cb(void *handler_args,
                 get_timestamp_str(timestamp, sizeof(timestamp));
                 ESP_LOGI(TAG, "%s WATER_CMD received: %.*s",
                          timestamp, event->data_len, event->data);
+                
+                // Parsuj payload - może być JSON {"duration": 5000} lub {"pulse_ms": 200} lub liczba
+                // Pusty payload = 0 = uruchom zwykłą pętlę (100ms)
+                uint32_t pulse_ms = 0;  // 0 = pusty payload = zwykła pętla
+                
+                if (event->data_len > 0) {
+                    char payload_data[128] = {0};
+                    memcpy(payload_data, event->data, event->data_len < sizeof(payload_data) - 1 ? event->data_len : sizeof(payload_data) - 1);
+                    
+                    // Sprawdź czy to JSON (zawsze spróbuj sparsować jako JSON jeśli zaczyna się od {)
+                    if (payload_data[0] == '{') {
+                        cJSON *json = cJSON_Parse(payload_data);
+                        if (json != NULL) {
+                            // Najpierw sprawdź "duration" (główny parametr)
+                            cJSON *duration_item = cJSON_GetObjectItemCaseSensitive(json, "duration");
+                            if (cJSON_IsNumber(duration_item)) {
+                                pulse_ms = (uint32_t)duration_item->valueint;
+                                ESP_LOGI(TAG, "%s Parsowano JSON: duration=%lu ms", timestamp, pulse_ms);
+                            } else {
+                                // Fallback do "pulse_ms" jeśli "duration" nie istnieje
+                                cJSON *pulse_item = cJSON_GetObjectItemCaseSensitive(json, "pulse_ms");
+                                if (cJSON_IsNumber(pulse_item)) {
+                                    pulse_ms = (uint32_t)pulse_item->valueint;
+                                    ESP_LOGI(TAG, "%s Parsowano JSON: pulse_ms=%lu ms", timestamp, pulse_ms);
+                                }
+                            }
+                            cJSON_Delete(json);
+                        } else {
+                            ESP_LOGW(TAG, "%s Błąd parsowania JSON: %s", timestamp, payload_data);
+                        }
+                    } else {
+                        // Spróbuj sparsować jako liczbę
+                        int parsed = atoi(payload_data);
+                        if (parsed > 0) {
+                            pulse_ms = (uint32_t)parsed;
+                            ESP_LOGI(TAG, "%s Parsowano liczbę: pulse_ms=%lu ms", timestamp, pulse_ms);
+                        }
+                    }
+                } else {
+                    // Pusty payload - uruchom zwykłą pętlę (100ms)
+                    ESP_LOGI(TAG, "%s Pusty payload - uruchamiam zwykłą pętlę podlewania (100ms)", timestamp);
+                }
+                
+                // Jeśli pulse_ms == 0 (pusty payload lub nie udało się sparsować), użyj 100ms dla pętli
+                if (pulse_ms == 0) {
+                    pulse_ms = 100;  // Zwykła pętla z water_controller
+                }
+                
+                // Jedź do ściany
+                esp_err_t move_res = water_controller_move_to_wall();
+                if (move_res == ESP_OK) {
+                    ESP_LOGI(TAG, "%s Dotarłem do ściany", timestamp);
+                    
+                    // Sprawdź czy dock jest gotowy i uruchom cykl podlewania
+                    if (!ble_dock_is_ready()) {
+                        ESP_LOGW(TAG, "%s Dock nie jest gotowy - brak połączenia BLE", timestamp);
+                    } else {
+                        esp_err_t res = ble_dock_run_watering_cycle(pulse_ms);
+                        if (res == ESP_OK) {
+                            ESP_LOGI(TAG, "%s Cykl podlewania zakończony pomyślnie", timestamp);
+                        } else {
+                            ESP_LOGE(TAG, "%s Błąd podczas cyklu podlewania: %s", timestamp, esp_err_to_name(res));
+                        }
+                    }
+                } else {
+                    ESP_LOGE(TAG, "%s Błąd podczas jazdy do ściany: %s", timestamp, esp_err_to_name(move_res));
+                }
+            }
+
+            /* --- KOMENDA LIGHT_SEARCH --- */
+            else if (strstr(event->topic, "/cmd/light_search"))
+            {
+                char timestamp[64];
+                get_timestamp_str(timestamp, sizeof(timestamp));
+                ESP_LOGI(TAG, "%s LIGHT_SEARCH_CMD received: %.*s",
+                         timestamp, event->data_len, event->data);
+                
+                // Wykonaj pojedyncze sprawdzenie światła i ruch
+                esp_err_t res = wsn_controller_single_light_search();
+                if (res == ESP_OK) {
+                    ESP_LOGI(TAG, "%s Pojedyncze sprawdzenie światła zakończone - wykonano ruch", timestamp);
+                } else {
+                    ESP_LOGW(TAG, "%s Pojedyncze sprawdzenie światła zakończone - brak ruchu (różnica za mała lub błąd)", timestamp);
+                }
             }
 
             /* --- KOMENDA MOVE --- */

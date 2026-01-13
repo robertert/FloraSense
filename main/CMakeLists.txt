@@ -2,9 +2,7 @@ idf_component_register(
     SRCS
         "flora-sense.c"
         "wifi.c"
-        "ble_client.c"
-        "ble_server.c"
-        "http_client.c"
+        "ble_dock_client.c"
         "motor_controller.c"
         "sensors/sensor_light.c"
         "sensors/adc_shared.c"
@@ -14,27 +12,18 @@ idf_component_register(
         "sensors/sensor_dock.c"
         "sensors/sensor_ir.c"
         "sensors/sensor_battery.c"
-        "sensors/hardware_test.c"
         "mqtt_client.c"
         "wsn_controller.c"
         "water_controller.c"
-        "bmp280.c"
-        "bmp280.h"
-        "mpu6050/mpu6050_test.c"
-        "mpu6050/mpu6050_test.h"
-        "mpu6050/mpu6050.c"
-        "mpu6050/mpu6050.h"
     INCLUDE_DIRS
         "." "sensors"
     REQUIRES
         bt
         nvs_flash
-        esp_http_client
         esp_netif
         freertos
         driver
         esp_driver_gpio
-        esp_driver_i2c
         esp_driver_i2c
         esp_wifi
         lwip
