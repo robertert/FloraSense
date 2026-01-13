@@ -11,7 +11,9 @@ static gpio_num_t hall_gpio_num = GPIO_NUM_NC;
 static gpio_num_t pump_gpio_num = GPIO_NUM_NC;
 static dock_control_hall_cb_t hall_state_cb = NULL;
 static bool initialized = false;
-static volatile uint8_t hall_state = 0;
+// hall_state: 0 = doniczka OBECNA (czujnik przyciągnięty magnesem, wyjście w stanie niskim),
+//             1 = doniczka BRAK (wejście podciągnięte do VCC przez pull-up)
+static volatile uint8_t hall_state = 1;
 static volatile bool pump_active = false;
 static TimerHandle_t pump_timer = NULL;
 static TaskHandle_t hall_monitor_task_handle = NULL;
@@ -130,8 +132,9 @@ esp_err_t dock_control_handle_water_command(uint32_t duration_ms)
         clamped = 600000;
     }
 
-    if (hall_state != 1) {
-        ESP_LOGW(TAG, "Polecenie water odrzucone: Hall=%u", hall_state);
+    // 0 = doniczka obecna (magnes przy czujniku), 1 = brak doniczki
+    if (hall_state != 0) {
+        ESP_LOGW(TAG, "Polecenie water odrzucone: brak doniczki (Hall=%u)", hall_state);
         return ESP_ERR_INVALID_STATE;
     }
 

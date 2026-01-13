@@ -7,6 +7,8 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 
+managed_components/
+
 # Pliki binarne i ELF
 *.elf
 *.bin

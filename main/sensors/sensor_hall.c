@@ -2,7 +2,7 @@
  * @file sensor_hall.c
  * @brief Obsługa czujnika Hall (A3144)
  * 
- * Czujnik Hall jest podłączony do GPIO 18 i wymaga wbudowanego pull-up.
+ * Czujnik Hall jest podłączony do GPIO 32 i wykorzystuje wewnętrzny pull-up.
  */
 
 #include "sensor_hall.h"

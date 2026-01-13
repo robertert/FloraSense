@@ -284,55 +284,6 @@ static void motor_controller_task(void *param)
     }
 }
 
-// Testowy task do sprawdzania pompy i logowania czujnika Halla
-static void dock_test_task(void *param)
-{
-    (void)param;
-    
-    ESP_LOGI(TAG, "Dock test task uruchomiony");
-    
-    // Poczekaj na inicjalizację dock_control
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    
-    uint32_t test_cycle = 0;
-    
-    while (1) {
-        // Loguj stan Halla
-        uint8_t hall_state = dock_control_get_hall_state();
-        bool pump_active = dock_control_is_pump_active();
-        
-        ESP_LOGI(TAG, "[TEST] Hall: %u, Pompa aktywna: %s", 
-                 hall_state, pump_active ? "TAK" : "NIE");
-        
-        // Co 10 sekund testuj pompę (jeśli Hall == 1)
-        if (test_cycle % 5 == 0) {  // 5 * 2s = 10s
-            if (hall_state == 1) {
-                ESP_LOGI(TAG, "[TEST] Uruchamianie testu pompy (2 sekundy)...");
-                esp_err_t ret = dock_control_handle_water_command(2000); // 2 sekundy
-                if (ret == ESP_OK) {
-                    ESP_LOGI(TAG, "[TEST] Pompa uruchomiona pomyślnie");
-                    
-                    // Czekaj i sprawdzaj czy pompa działa
-                    for (int i = 0; i < 10; i++) {
-                        vTaskDelay(pdMS_TO_TICKS(200));
-                        bool active = dock_control_is_pump_active();
-                        ESP_LOGI(TAG, "[TEST] Pompa po %d ms: %s", 
-                                 (i + 1) * 200, active ? "AKTYWNA" : "ZATRZYMANA");
-                    }
-                } else {
-                    ESP_LOGW(TAG, "[TEST] Nie udało się uruchomić pompy: %s", 
-                             esp_err_to_name(ret));
-                }
-            } else {
-                ESP_LOGW(TAG, "[TEST] Pompa nie może być uruchomiona - Hall != 1 (aktualnie: %u)", 
-                         hall_state);
-            }
-        }
-        
-        test_cycle++;
-        vTaskDelay(pdMS_TO_TICKS(2000)); // Sprawdzaj co 2 sekundy
-    }
-}
 
 void app_main(void)
 {
@@ -434,6 +385,4 @@ void app_main(void)
     ble_server_set_hall_state(dock_control_get_hall_state());
     ble_server_init();
     
-    // Testowy task do sprawdzania pompy i logowania Halla
-    xTaskCreate(dock_test_task, "dock_test_task", 4096, NULL, 5, NULL);
 }

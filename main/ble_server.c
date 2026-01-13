@@ -17,8 +17,10 @@ enum dock_gatt_idx {
     IDX_CHAR_HALL,
     IDX_CHAR_HALL_VAL,
     IDX_CHAR_HALL_CCC,
+    IDX_CHAR_HALL_USER_DESC,
     IDX_CHAR_WATER,
     IDX_CHAR_WATER_VAL,
+    IDX_CHAR_WATER_USER_DESC,
     FLORA_IDX_NB,
 };
 
@@ -34,6 +36,7 @@ static ble_server_water_cmd_cb_t water_cmd_cb = NULL;
 static const uint16_t primary_service_uuid = ESP_GATT_UUID_PRI_SERVICE;
 static const uint16_t character_declaration_uuid = ESP_GATT_UUID_CHAR_DECLARE;
 static const uint16_t client_char_config_uuid = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
+static const uint16_t user_desc_uuid = ESP_GATT_UUID_CHAR_DESCRIPTION;
 
 static const uint8_t dock_service_uuid[ESP_UUID_LEN_128] = {
     0x55, 0x44, 0x33, 0x22, 0x11, 0x00, 0xFF, 0xEE,
@@ -52,6 +55,10 @@ static const uint8_t water_char_uuid[ESP_UUID_LEN_128] = {
 
 static const uint8_t char_prop_read_notify[] = {ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY};
 static const uint8_t char_prop_read_write[] = {ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_WRITE_NR};
+
+// Opisy wyświetlane np. w nRF Connect jako „User Description”
+static const char hall_user_desc[]  = "Stan doniczki (Hall)";
+static const char water_user_desc[] = "Podlewanie (czas w ms)";
 
 static esp_ble_adv_params_t adv_params = {
     .adv_int_min        = 0x20,
@@ -123,6 +130,17 @@ static const esp_gatts_attr_db_t dock_gatt_db[FLORA_IDX_NB] = {
             .value = (uint8_t[]){0x00, 0x00},
         },
     },
+    [IDX_CHAR_HALL_USER_DESC] = {
+        .attr_control = {ESP_GATT_AUTO_RSP},
+        .att_desc = {
+            .uuid_length = ESP_UUID_LEN_16,
+            .uuid_p = (uint8_t *)&user_desc_uuid,
+            .perm = ESP_GATT_PERM_READ,
+            .max_length = sizeof(hall_user_desc),
+            .length = sizeof(hall_user_desc),
+            .value = (uint8_t *)hall_user_desc,
+        },
+    },
     [IDX_CHAR_WATER] = {
         .attr_control = {ESP_GATT_AUTO_RSP},
         .att_desc = {
@@ -143,6 +161,17 @@ static const esp_gatts_attr_db_t dock_gatt_db[FLORA_IDX_NB] = {
             .max_length = sizeof(uint32_t),
             .length = sizeof(uint32_t),
             .value = (uint8_t[]){0x00, 0x00, 0x00, 0x00},
+        },
+    },
+    [IDX_CHAR_WATER_USER_DESC] = {
+        .attr_control = {ESP_GATT_AUTO_RSP},
+        .att_desc = {
+            .uuid_length = ESP_UUID_LEN_16,
+            .uuid_p = (uint8_t *)&user_desc_uuid,
+            .perm = ESP_GATT_PERM_READ,
+            .max_length = sizeof(water_user_desc),
+            .length = sizeof(water_user_desc),
+            .value = (uint8_t *)water_user_desc,
         },
     },
 };
@@ -171,6 +200,8 @@ static void apply_hall_value(void)
 
 void ble_server_set_hall_state(uint8_t new_state)
 {
+    // Przekazujemy stan 0/1 dokładnie tak, jak dostajemy z dock_control:
+    // 0 = doniczka OBECNA, 1 = doniczka BRAK.
     hall_value[0] = new_state ? 1 : 0;
     apply_hall_value();
 }
@@ -195,8 +226,9 @@ static void handle_water_write(const esp_ble_gatts_cb_param_t *param)
 
     esp_ble_gatts_set_attr_value(handle_table[IDX_CHAR_WATER_VAL], param->write.len, param->write.value);
 
-    if (hall_value[0] != 1) {
-        ESP_LOGW(TAG, "Komenda water odrzucona: Hall=%u", hall_value[0]);
+    // 0 = doniczka obecna, tylko wtedy wolno podlewać
+    if (hall_value[0] != 0) {
+        ESP_LOGW(TAG, "Komenda water odrzucona: brak doniczki (Hall=%u)", hall_value[0]);
         return;
     }
 
