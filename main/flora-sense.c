@@ -59,11 +59,12 @@ static void ble_server_task(void *param)
     vTaskDelete(NULL);
 }
 
-static void ble_client_task(void *param)
-{
-    init_ble();
-    vTaskDelete(NULL);
-}
+// BLE client not needed for dock station - commented out
+// static void ble_client_task(void *param)
+// {
+//     init_ble();
+//     vTaskDelete(NULL);
+// }
 
 static void soil_sensor_task(void *param)
 {
