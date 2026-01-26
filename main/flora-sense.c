@@ -42,11 +42,11 @@ void nvs_init(void)
     ESP_ERROR_CHECK(ret);
 }
 
-static void wifi_init_task(void *param)
-{
-    wifi_init();
-    vTaskDelete(NULL);
-}
+// static void wifi_init_task(void *param)
+// {
+//     wifi_init();
+//     vTaskDelete(NULL);
+// }
 
 static void soil_sensor_task(void *param)
 {
@@ -272,51 +272,62 @@ void app_main(void)
     nvs_init();
     
     // Inicjalizacja WiFi (w osobnym tasku)
-    xTaskCreate(wifi_init_task, "wifi_init_task", 3072, NULL, 5, NULL);
+    //xTaskCreate(wifi_init_task, "wifi_init_task", 3072, NULL, 5, NULL);
     
     // Poczekaj chwilę na inicjalizację WiFi przed uruchomieniem MQTT
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    //vTaskDelay(pdMS_TO_TICKS(2000));
+
+    wifi_manager_init();
+    while (!wifi_is_connected()) 
+    {
+        if (wifi_is_ap_mode()) {
+            ESP_LOGW("MAIN", "Urządzenie w trybie AP. Czekam na konfigurację przez kod QR...");
+            break; 
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        ESP_LOGI("MAIN", "Czekam na WiFi...");
+    }
     
     // Inicjalizacja i start MQTT
-    mqtt_app_start();
+    // mqtt_app_start();
     
-    // Task publikujący dane z czujników przez MQTT
-    // Priorytet 7 - wyższy niż WSN (5) aby MQTT nie był blokowany przez operacje silnika
-    xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 3072, NULL, 7, NULL);
+    // // Task publikujący dane z czujników przez MQTT
+    // // Priorytet 7 - wyższy niż WSN (5) aby MQTT nie był blokowany przez operacje silnika
+    // xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 3072, NULL, 7, NULL);
     
-    // Poczekaj na inicjalizację czujników przed uruchomieniem WSN
-    vTaskDelay(pdMS_TO_TICKS(3000));
+    // // Poczekaj na inicjalizację czujników przed uruchomieniem WSN
+    // vTaskDelay(pdMS_TO_TICKS(3000));
     
-    // Task monitorowania przeszkód - niezależny, najwyższy priorytet bezpieczeństwa
-    // Zatrzymuje silniki gdy wykryje przeszkodę, niezależnie od sterowania MQTT lub WSN
-    // Sprawdza oba czujniki IR (przód i tył)
-    static obstacle_monitor_config_t obstacle_config;
-    obstacle_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();  // Czujnik IR 2 z przodu
-    obstacle_config.ir_sensor_back = mqtt_get_ir_sensor_pin_1();   // Czujnik IR 1 z tyłu
-    xTaskCreate(obstacle_monitor_task, "obstacle_monitor_task", 2048, 
-                &obstacle_config, 10, NULL);  // Priorytet 10 - najwyższy
+    // // Task monitorowania przeszkód - niezależny, najwyższy priorytet bezpieczeństwa
+    // // Zatrzymuje silniki gdy wykryje przeszkodę, niezależnie od sterowania MQTT lub WSN
+    // // Sprawdza oba czujniki IR (przód i tył)
+    // static obstacle_monitor_config_t obstacle_config;
+    // obstacle_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();  // Czujnik IR 2 z przodu
+    // obstacle_config.ir_sensor_back = mqtt_get_ir_sensor_pin_1();   // Czujnik IR 1 z tyłu
+    // xTaskCreate(obstacle_monitor_task, "obstacle_monitor_task", 2048, 
+    //             &obstacle_config, 10, NULL);  // Priorytet 10 - najwyższy
     
-    // Task kontrolera WSN - autonomiczne poruszanie się w kierunku światła
-    // Uwaga: czujniki są fizycznie zamontowane odwrotnie niż w konfiguracji
-    static wsn_controller_config_t wsn_config;
-    wsn_config.light_sensor_1 = mqtt_get_light_config_2();  // Fizycznie z przodu
-    wsn_config.light_sensor_2 = mqtt_get_light_config_1();  // Fizycznie z tyłu
-    wsn_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();  // Czujnik IR 2 z przodu
-    wsn_config.base_speed = 128;                              // Bazowa prędkość silników
-    wsn_config.light_threshold_lux = 10.0f;                   // Próg różnicy światła (10 lux)
-    wsn_config.check_interval_ms = 200;                       // Sprawdzanie co 200ms
-    wsn_config.move_distance_cm = 2.5f;                       // Przesunięcie o 5cm
-    wsn_config.wait_after_threshold_ms = 5 * 60 * 1000;      // Czekaj 5 minut po osiągnięciu progu
-    xTaskCreate(wsn_controller_task, "wsn_controller_task", 3072, &wsn_config, 5, NULL);
+    // // Task kontrolera WSN - autonomiczne poruszanie się w kierunku światła
+    // // Uwaga: czujniki są fizycznie zamontowane odwrotnie niż w konfiguracji
+    // static wsn_controller_config_t wsn_config;
+    // wsn_config.light_sensor_1 = mqtt_get_light_config_2();  // Fizycznie z przodu
+    // wsn_config.light_sensor_2 = mqtt_get_light_config_1();  // Fizycznie z tyłu
+    // wsn_config.ir_sensor_front = mqtt_get_ir_sensor_pin_2();  // Czujnik IR 2 z przodu
+    // wsn_config.base_speed = 128;                              // Bazowa prędkość silników
+    // wsn_config.light_threshold_lux = 10.0f;                   // Próg różnicy światła (10 lux)
+    // wsn_config.check_interval_ms = 200;                       // Sprawdzanie co 200ms
+    // wsn_config.move_distance_cm = 2.5f;                       // Przesunięcie o 5cm
+    // wsn_config.wait_after_threshold_ms = 5 * 60 * 1000;      // Czekaj 5 minut po osiągnięciu progu
+    // xTaskCreate(wsn_controller_task, "wsn_controller_task", 3072, &wsn_config, 5, NULL);
 
-    // Task obsługujący żądania light_search z MQTT (nieblokujący dla MQTT event handlera)
-    xTaskCreate(light_search_task, "light_search_task", 4096, NULL, 5, NULL);
+    // // Task obsługujący żądania light_search z MQTT (nieblokujący dla MQTT event handlera)
+    // xTaskCreate(light_search_task, "light_search_task", 4096, NULL, 5, NULL);
 
-    // Task kontrolera automatycznego podlewania
-    xTaskCreate(water_controller_task, "water_controller_task", 3072, NULL, 4, NULL);
+    // // Task kontrolera automatycznego podlewania
+    // xTaskCreate(water_controller_task, "water_controller_task", 3072, NULL, 4, NULL);
 
-    // Klient dokowania BLE (połączenie z FloraDock do podlewania)
-    ble_dock_client_init();
+    // // Klient dokowania BLE (połączenie z FloraDock do podlewania)
+    // ble_dock_client_init();
     /*
     sensor_temp_init();
     sensor_temp_reading_t reading;

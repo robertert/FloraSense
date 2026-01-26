@@ -25,6 +25,9 @@ idf_component_register(
         driver
         esp_driver_gpio
         esp_driver_i2c
+        esp_http_server 
+        esp_https_server
+        mbedtls
         esp_wifi
         lwip
         esp_adc
