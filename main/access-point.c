@@ -403,8 +403,8 @@ void start_wifi_ap() {
     char qr_payload[128];
     snprintf(qr_payload,sizeof(qr_payload),"WIFI:S:%s;T:WPA;P:%s;;",CONFIG_AP_SSID,ap_password);
     ESP_LOGI(TAG, "================================================");
-    ESP_LOGI(TAG, "https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=WIFI:S:%s%%3BT:WPA%%3BP:%s%%3B%%3B", 
-             CONFIG_AP_SSID, ap_password);
+    ESP_LOGI(TAG, "SSID: %s",CONFIG_AP_SSID);
+    ESP_LOGI(TAG, "PAYLOAD: %s",qr_payload);
     ESP_LOGI(TAG, "================================================");
 
 }
