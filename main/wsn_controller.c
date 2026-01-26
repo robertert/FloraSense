@@ -25,6 +25,10 @@ static volatile bool obstacle_front_detected = false;  // Przeszkoda z przodu
 static volatile bool obstacle_back_detected = false;   // Przeszkoda z tyłu
 static portMUX_TYPE obstacle_flag_mutex = portMUX_INITIALIZER_UNLOCKED;
 
+// Flaga żądania light search (do wywołania z MQTT event handlera)
+static volatile bool light_search_requested = false;
+static portMUX_TYPE light_search_mutex = portMUX_INITIALIZER_UNLOCKED;
+
 /**
  * @brief Inicjalizuje kontroler WSN
  */
@@ -558,11 +562,7 @@ esp_err_t wsn_controller_single_light_search(void)
                     
                     // Czekaj przed następnym sprawdzeniem (jeśli nie jesteśmy w trybie oczekiwania)
                     if (!waiting_mode) {
-                        uint32_t check_interval = mqtt_get_light_check_interval_ms();
-                        if (check_interval == 0) {
-                            check_interval = current_config.check_interval_ms;  // Fallback do konfiguracji
-                        }
-                        vTaskDelay(pdMS_TO_TICKS(check_interval));
+                        vTaskDelay(pdMS_TO_TICKS(500));
                     }
                 }
                 
@@ -577,5 +577,47 @@ esp_err_t wsn_controller_single_light_search(void)
     } else {
         ESP_LOGW(TAG, "Jeden z czujników światła nie działa - brak ruchu");
         return ESP_FAIL;
+    }
+}
+
+/**
+ * @brief Żąda wykonania light search (nieblokujące)
+ */
+void wsn_controller_request_light_search(void)
+{
+    portENTER_CRITICAL(&light_search_mutex);
+    light_search_requested = true;
+    portEXIT_CRITICAL(&light_search_mutex);
+    ESP_LOGI(TAG, "Light search requested (non-blocking)");
+}
+
+/**
+ * @brief Task obsługujący żądania light search
+ */
+void light_search_task(void *param)
+{
+    ESP_LOGI(TAG, "Light search task started");
+
+    while (1) {
+        bool should_search = false;
+
+        portENTER_CRITICAL(&light_search_mutex);
+        if (light_search_requested) {
+            should_search = true;
+            light_search_requested = false;
+        }
+        portEXIT_CRITICAL(&light_search_mutex);
+
+        if (should_search) {
+            ESP_LOGI(TAG, "Executing light search from dedicated task...");
+            esp_err_t res = wsn_controller_single_light_search();
+            if (res == ESP_OK) {
+                ESP_LOGI(TAG, "Light search completed - movement executed");
+            } else {
+                ESP_LOGW(TAG, "Light search completed - no movement (difference too small or error)");
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));  // Sprawdzaj co 100ms
     }
 }

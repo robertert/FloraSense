@@ -90,7 +90,7 @@ static float light_threshold = 10.0f;  // Domyślny próg światła (lux)
 static float soil_humidity_threshold = 50.0f;  // Domyślny próg wilgotności gleby (%)
 static bool water_enabled = false;  // Domyślnie wyłączone
 static uint32_t water_check_interval_ms = 600000;  // Domyślny interwał sprawdzania wilgotności (10 minut)
-static uint32_t light_check_interval_ms = 300000;     // Domyślny interwał sprawdzania światła (200ms)
+static uint32_t light_check_interval_ms = 60000;     // Domyślny interwał sprawdzania światła (30 sekund)
 
 static esp_mqtt_client_handle_t client = NULL;
 static bool mqtt_connected = false;
@@ -246,7 +246,7 @@ static void load_measurement_interval_from_nvs(void)
     nvs_handle_t handle;
     if (nvs_open("storage", NVS_READONLY, &handle) == ESP_OK) {
         uint32_t interval = DEFAULT_MEASUREMENT_INTERVAL_MS;
-        if (nvs_get_u32(handle, "measurement_interval_ms", &interval) == ESP_OK) {
+        if (nvs_get_u32(handle, "meas_int_ms", &interval) == ESP_OK) {
             measurement_interval_ms = interval;
             char timestamp[64];
             get_timestamp_str(timestamp, sizeof(timestamp));
@@ -260,7 +260,7 @@ static void save_measurement_interval_to_nvs(void)
 {
     nvs_handle_t handle;
     if (nvs_open("storage", NVS_READWRITE, &handle) == ESP_OK) {
-        nvs_set_u32(handle, "measurement_interval_ms", measurement_interval_ms);
+        nvs_set_u32(handle, "meas_int_ms", measurement_interval_ms);
         nvs_commit(handle);
         nvs_close(handle);
         char timestamp[64];
@@ -277,7 +277,7 @@ static void load_light_movement_from_nvs(void)
     nvs_handle_t handle;
     if (nvs_open("storage", NVS_READONLY, &handle) == ESP_OK) {
         uint8_t enabled = 0;
-        esp_err_t ret = nvs_get_u8(handle, "light_movement_enabled", &enabled);
+        esp_err_t ret = nvs_get_u8(handle, "light_mov_en", &enabled);
         char timestamp[64];
         get_timestamp_str(timestamp, sizeof(timestamp));
         if (ret == ESP_OK) {
@@ -299,7 +299,7 @@ static void save_light_movement_to_nvs(void)
 {
     nvs_handle_t handle;
     if (nvs_open("storage", NVS_READWRITE, &handle) == ESP_OK) {
-        nvs_set_u8(handle, "light_movement_enabled", light_movement_enabled ? 1 : 0);
+        nvs_set_u8(handle, "light_mov_en", light_movement_enabled ? 1 : 0);
         nvs_commit(handle);
         nvs_close(handle);
         char timestamp[64];
@@ -325,25 +325,25 @@ static void load_device_config_from_nvs(void)
         // soil_humidity_threshold
         threshold = 50.0f;
         size = sizeof(float);
-        if (nvs_get_blob(handle, "soil_humidity_threshold", &threshold, &size) == ESP_OK) {
+        if (nvs_get_blob(handle, "soil_hum_thr", &threshold, &size) == ESP_OK) {
             soil_humidity_threshold = threshold;
         }
-        
+
         // water_enabled
         uint8_t enabled = 0;
         if (nvs_get_u8(handle, "water_enabled", &enabled) == ESP_OK) {
             water_enabled = (enabled != 0);
         }
-        
+
         // water_check_interval_ms
         uint32_t interval = 600000;
-        if (nvs_get_u32(handle, "water_check_interval_ms", &interval) == ESP_OK) {
+        if (nvs_get_u32(handle, "water_int_ms", &interval) == ESP_OK) {
             water_check_interval_ms = interval;
         }
-        
+
         // light_check_interval_ms
-        interval = 300000;
-        if (nvs_get_u32(handle, "light_check_interval_ms", &interval) == ESP_OK) {
+        interval = 60000;  // Domyślnie 60s
+        if (nvs_get_u32(handle, "light_int_ms", &interval) == ESP_OK) {
             light_check_interval_ms = interval;
         }
         
@@ -363,16 +363,16 @@ static void save_device_config_to_nvs(void)
         nvs_set_blob(handle, "light_threshold", &light_threshold, sizeof(float));
         
         // soil_humidity_threshold
-        nvs_set_blob(handle, "soil_humidity_threshold", &soil_humidity_threshold, sizeof(float));
-        
+        nvs_set_blob(handle, "soil_hum_thr", &soil_humidity_threshold, sizeof(float));
+
         // water_enabled
         nvs_set_u8(handle, "water_enabled", water_enabled ? 1 : 0);
-        
+
         // water_check_interval_ms
-        nvs_set_u32(handle, "water_check_interval_ms", water_check_interval_ms);
-        
+        nvs_set_u32(handle, "water_int_ms", water_check_interval_ms);
+
         // light_check_interval_ms
-        nvs_set_u32(handle, "light_check_interval_ms", light_check_interval_ms);
+        nvs_set_u32(handle, "light_int_ms", light_check_interval_ms);
         
         nvs_commit(handle);
         nvs_close(handle);
@@ -687,12 +687,12 @@ static void mqtt_event_handler_cb(void *handler_args,
                     cJSON *light_interval = cJSON_GetObjectItemCaseSensitive(json, "light_check_interval_ms");
                     if (cJSON_IsNumber(light_interval)) {
                         uint32_t new_interval = (uint32_t)light_interval->valueint;
-                        if (new_interval >= 50 && new_interval <= 60000) {  // Walidacja: 50ms - 60s
+                        if (new_interval >= 60000 && new_interval <= 6000000) {  // Walidacja: 60s - 60min
                             light_check_interval_ms = new_interval;
                             config_updated = true;
                             ESP_LOGI(TAG, "%s Light check interval updated: %lu ms", timestamp, light_check_interval_ms);
                         } else {
-                            ESP_LOGW(TAG, "%s Invalid light_check_interval_ms: %lu (must be 50-60000)", timestamp, new_interval);
+                            ESP_LOGW(TAG, "%s Invalid light_check_interval_ms: %lu (must be 60000-6000000)", timestamp, new_interval);
                         }
                     }
 
@@ -787,14 +787,9 @@ static void mqtt_event_handler_cb(void *handler_args,
                 get_timestamp_str(timestamp, sizeof(timestamp));
                 ESP_LOGI(TAG, "%s LIGHT_SEARCH_CMD received: %.*s",
                          timestamp, event->data_len, event->data);
-                
-                // Wykonaj pojedyncze sprawdzenie światła i ruch
-                esp_err_t res = wsn_controller_single_light_search();
-                if (res == ESP_OK) {
-                    ESP_LOGI(TAG, "%s Pojedyncze sprawdzenie światła zakończone - wykonano ruch", timestamp);
-                } else {
-                    ESP_LOGW(TAG, "%s Pojedyncze sprawdzenie światła zakończone - brak ruchu (różnica za mała lub błąd)", timestamp);
-                }
+
+                // Żądaj light search (nieblokujące - obsługiwane przez osobny task)
+                wsn_controller_request_light_search();
             }
 
             /* --- KOMENDA MOVE --- */

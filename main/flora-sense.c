@@ -281,7 +281,8 @@ void app_main(void)
     mqtt_app_start();
     
     // Task publikujący dane z czujników przez MQTT
-    xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 3072, NULL, 5, NULL);
+    // Priorytet 7 - wyższy niż WSN (5) aby MQTT nie był blokowany przez operacje silnika
+    xTaskCreate(mqtt_publish_task, "mqtt_pub_task", 3072, NULL, 7, NULL);
     
     // Poczekaj na inicjalizację czujników przed uruchomieniem WSN
     vTaskDelay(pdMS_TO_TICKS(3000));
@@ -307,7 +308,10 @@ void app_main(void)
     wsn_config.move_distance_cm = 2.5f;                       // Przesunięcie o 5cm
     wsn_config.wait_after_threshold_ms = 5 * 60 * 1000;      // Czekaj 5 minut po osiągnięciu progu
     xTaskCreate(wsn_controller_task, "wsn_controller_task", 3072, &wsn_config, 5, NULL);
-    
+
+    // Task obsługujący żądania light_search z MQTT (nieblokujący dla MQTT event handlera)
+    xTaskCreate(light_search_task, "light_search_task", 4096, NULL, 5, NULL);
+
     // Task kontrolera automatycznego podlewania
     xTaskCreate(water_controller_task, "water_controller_task", 3072, NULL, 4, NULL);
 

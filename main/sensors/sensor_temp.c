@@ -1,10 +1,12 @@
 #include "sensor_temp.h"
+#include "sensor_light.h"  // Dla wspólnego mutexa I2C
 #include "config.h"
 #include "esp_log.h"
 #include "esp_check.h"
 #include "driver/i2c.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 
 static const char *TAG = "sensor_temp";
 
@@ -309,10 +311,27 @@ esp_err_t sensor_temp_read(sensor_temp_reading_t *reading)
         return ESP_ERR_INVALID_STATE;
     }
 
+    // Pobierz wspólny mutex I2C
+    SemaphoreHandle_t i2c_mutex = sensor_light_get_i2c_mutex(TEMP_SENSOR_I2C_PORT);
+    if (i2c_mutex == NULL) {
+        ESP_LOGE(TAG, "Nie można uzyskać mutexa I2C");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // Zdobądź mutex z timeoutem 500ms
+    if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(500)) != pdTRUE) {
+        ESP_LOGW(TAG, "Timeout oczekiwania na mutex I2C - bus zajęty");
+        return ESP_ERR_TIMEOUT;
+    }
+
     // Odczytaj dane surowe (8 bajtów: press 3, temp 3, hum 2)
     uint8_t data[8] = {0};
-    ESP_RETURN_ON_ERROR(bme280_read_reg(BME280_REG_PRESS_MSB, data, 8),
-                        TAG, "Błąd odczytu danych BME280");
+    esp_err_t ret = bme280_read_reg(BME280_REG_PRESS_MSB, data, 8);
+    if (ret != ESP_OK) {
+        xSemaphoreGive(i2c_mutex);
+        ESP_LOGE(TAG, "Błąd odczytu danych BME280: %s", esp_err_to_name(ret));
+        return ret;
+    }
 
     // Parsuj temperaturę (20-bit)
     int32_t adc_T = ((int32_t)data[3] << 12) | ((int32_t)data[4] << 4) | ((int32_t)data[5] >> 4);
@@ -355,6 +374,9 @@ esp_err_t sensor_temp_read(sensor_temp_reading_t *reading)
     if (reading->humidity_percent == 0.0f && adc_H != 0) {
         ESP_LOGW(TAG, "Wilgotność = 0%%! adc_H=%ld, t_fine=%ld", adc_H, t_fine);
     }
+
+    // Zwolnij mutex I2C
+    xSemaphoreGive(i2c_mutex);
 
     return ESP_OK;
 }

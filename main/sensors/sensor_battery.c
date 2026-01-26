@@ -268,9 +268,7 @@ esp_err_t sensor_battery_read(sensor_battery_reading_t *reading)
     reading->millivolts = battery_millivolts;
     reading->battery_percent = sensor_battery_mv_to_percent(battery_millivolts);
 
-    // Aktualizuj stan LED na podstawie poziomu baterii
-    sensor_battery_update_led(reading->battery_percent, 0.0f);  // Użyj domyślnego progu
-
+    
     return ESP_OK;
 }
 

@@ -5,12 +5,16 @@
 #include "esp_check.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "driver/i2c.h"
 #include <string.h>
 
 static const char *TAG = "sensor_light";
 
 #define MAX_LIGHT_SENSORS 4
+
+// Mutex dla każdego portu I2C (aby uniknąć konfliktów między taskami)
+static SemaphoreHandle_t i2c_mutex[I2C_NUM_MAX] = {NULL};
 
 // Struktura do przechowywania stanu każdej instancji
 typedef struct {
@@ -63,7 +67,17 @@ static esp_err_t sensor_light_i2c_init(const sensor_light_config_t *config)
     if (idx < 0) {
         return ESP_ERR_NO_MEM;
     }
-    
+
+    // Utwórz mutex dla tego portu I2C jeśli nie istnieje
+    if (i2c_mutex[config->i2c_port] == NULL) {
+        i2c_mutex[config->i2c_port] = xSemaphoreCreateMutex();
+        if (i2c_mutex[config->i2c_port] == NULL) {
+            ESP_LOGE(TAG, "Nie udało się utworzyć mutexa I2C dla portu %d", config->i2c_port);
+            return ESP_ERR_NO_MEM;
+        }
+        ESP_LOGI(TAG, "Utworzono mutex I2C dla portu %d", config->i2c_port);
+    }
+
     if (instances[idx].i2c_initialized) {
         return ESP_OK;
     }
@@ -232,21 +246,42 @@ esp_err_t sensor_light_read(const sensor_light_config_t *config, sensor_light_re
     if (config == NULL || reading == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
-    
+
     if (!sensor_light_is_initialized(config)) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    uint16_t raw_als = 0;
-    ESP_RETURN_ON_ERROR(veml7700_read_reg(config, VEML7700_REG_ALS, &raw_als),
-                        TAG, "Błąd odczytu ALS");
+    // Sprawdź czy mutex istnieje
+    if (i2c_mutex[config->i2c_port] == NULL) {
+        ESP_LOGE(TAG, "Mutex I2C dla portu %d nie istnieje", config->i2c_port);
+        return ESP_ERR_INVALID_STATE;
+    }
 
+    // Zdobądź mutex z timeoutem 500ms
+    if (xSemaphoreTake(i2c_mutex[config->i2c_port], pdMS_TO_TICKS(500)) != pdTRUE) {
+        ESP_LOGW(TAG, "Timeout oczekiwania na mutex I2C (port %d) - bus zajęty", config->i2c_port);
+        return ESP_ERR_TIMEOUT;
+    }
+
+    esp_err_t ret = ESP_OK;
+    uint16_t raw_als = 0;
     uint16_t raw_white = 0;
+
+    ret = veml7700_read_reg(config, VEML7700_REG_ALS, &raw_als);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Błąd odczytu ALS: %s", esp_err_to_name(ret));
+        xSemaphoreGive(i2c_mutex[config->i2c_port]);
+        return ret;
+    }
+
     esp_err_t white_err = veml7700_read_reg(config, VEML7700_REG_WHITE, &raw_white);
     if (white_err != ESP_OK) {
         ESP_LOGW(TAG, "Błąd odczytu kanału WHITE: %s", esp_err_to_name(white_err));
         raw_white = 0;
     }
+
+    // Zwolnij mutex
+    xSemaphoreGive(i2c_mutex[config->i2c_port]);
 
     reading->raw_als = raw_als;
     reading->raw_white = raw_white;
@@ -302,4 +337,24 @@ void light_sensor_task(void *param)
         }
         vTaskDelay(pdMS_TO_TICKS(LIGHT_SENSOR_POLL_PERIOD_MS));
     }
+}
+
+SemaphoreHandle_t sensor_light_get_i2c_mutex(i2c_port_t port)
+{
+    if (port >= I2C_NUM_MAX) {
+        ESP_LOGE(TAG, "Nieprawidłowy port I2C: %d", port);
+        return NULL;
+    }
+
+    // Utwórz mutex jeśli nie istnieje
+    if (i2c_mutex[port] == NULL) {
+        i2c_mutex[port] = xSemaphoreCreateMutex();
+        if (i2c_mutex[port] == NULL) {
+            ESP_LOGE(TAG, "Nie udało się utworzyć mutexa I2C dla portu %d", port);
+            return NULL;
+        }
+        ESP_LOGI(TAG, "Utworzono mutex I2C dla portu %d (z get_i2c_mutex)", port);
+    }
+
+    return i2c_mutex[port];
 }

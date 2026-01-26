@@ -63,12 +63,26 @@ bool obstacle_is_detected(const char *direction);
 
 /**
  * @brief Wykonuje pojedyncze sprawdzenie światła i ruch w kierunku lepszego światła
- * 
- * Funkcja wykonuje jedno sprawdzenie światła z obu czujników i przesuwa urządzenie
- * w kierunku lepszego światła, jeśli różnica przekracza próg. Po wykonaniu ruchu
- * uruchamia pętlę kontynuującą sprawdzanie i poruszanie się aż do osiągnięcia progu
- * światła lub wyłączenia automatycznego poruszania się.
- * 
- * @return ESP_OK jeśli wykonano ruch i uruchomiono pętlę sprawdzania, ESP_FAIL jeśli błąd lub różnica za mała
+ *
+ * UWAGA: Ta funkcja BLOKUJE - nie wywoływać z event handlerów!
+ * Zamiast tego użyj wsn_controller_request_light_search().
+ *
+ * @return ESP_OK jeśli wykonano ruch, ESP_FAIL jeśli błąd lub różnica za mała
  */
 esp_err_t wsn_controller_single_light_search(void);
+
+/**
+ * @brief Żąda wykonania light search (nieblokujące)
+ *
+ * Ustawia flagę, która zostanie obsłużona przez light_search_task.
+ * Bezpieczne do wywoływania z MQTT event handlera.
+ */
+void wsn_controller_request_light_search(void);
+
+/**
+ * @brief Task obsługujący żądania light search
+ *
+ * Monitoruje flagę i wykonuje light search w osobnym kontekście.
+ * @param param Nieużywane (NULL)
+ */
+void light_search_task(void *param);

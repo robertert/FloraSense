@@ -1,150 +1,211 @@
-# Flora Sense
+# FloraSense - Mobilny Robot Monitoringu Roślin
 
 ## Opis projektu
 
-**Flora Sense** to inteligentny system monitoringu roślin oparty na mikrokontrolerze ESP32. Projekt umożliwia ciągłe monitorowanie warunków środowiskowych roślin poprzez zbiór różnych czujników, a także komunikację z systemami zewnętrznymi poprzez WiFi, Bluetooth Low Energy (BLE) oraz protokół MQTT.
+**FloraSense** to inteligentny, mobilny robot do monitorowania i pielęgnacji roślin oparty na mikrokontrolerze ESP32. Robot autonomicznie podąża za światłem (fototropia), monitoruje warunki środowiskowe roślin i komunikuje się ze stacją dokującą **FloraDock** w celu automatycznego podlewania.
+
+## Architektura systemu
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        FloraSense (Robot)                        │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │   Czujniki  │  │   Silniki   │  │    Komunikacja          │  │
+│  │  - Światło  │  │  - Motor A  │  │  - WiFi + MQTT          │  │
+│  │  - Gleba    │  │  - Motor B  │  │  - BLE Client (Dock)    │  │
+│  │  - Temp     │  │             │  │                         │  │
+│  │  - IR (x2)  │  └─────────────┘  └─────────────────────────┘  │
+│  │  - Hall     │                                                 │
+│  │  - Dock     │                                                 │
+│  └─────────────┘                                                 │
+└─────────────────────────────────────────────────────────────────┘
+           │                                      │
+           │ BLE                                  │ MQTT
+           ▼                                      ▼
+┌─────────────────────┐                ┌─────────────────────┐
+│    FloraDock        │                │    MQTT Broker      │
+│  (Stacja dokująca)  │                │    + Aplikacja      │
+│  - BLE Server       │                └─────────────────────┘
+│  - Pompa wody       │
+│  - Czujnik Hall     │
+└─────────────────────┘
+```
 
 ## Główne funkcjonalności
 
-### Czujniki środowiskowe
+### Autonomiczna fototropia (WSN Controller)
+- Automatyczne podążanie za źródłem światła
+- Dwa czujniki światła VEML7700 (przód/tył) do wykrywania kierunku
+- Konfigurowalne progi różnicy światła i interwały sprawdzania
+- Możliwość włączania/wyłączania przez MQTT
 
-- **Czujnik wilgotności gleby** - pomiar poziomu wilgotności podłoża
-- **Czujnik temperatury i wilgotności** (BME280) - monitorowanie warunków atmosferycznych
-- **Czujnik ciśnienia** (BMP280) - pomiar ciśnienia atmosferycznego
-- **Czujnik światła** (VEML7700) - pomiar natężenia światła
-- **Czujnik zbliżeniowy** - wykrywanie obiektów w pobliżu
-- **Czujnik Hall** - wykrywanie pola magnetycznego
-- **Czujnik IR** - wykrywanie przeszkód
-- **Czujnik dock** - wykrywanie podłączenia do stacji dokującej
-- **Akcelerometr/żyroskop** (MPU6050) - pomiar orientacji i ruchu
+### Monitorowanie przeszkód
+- Dwa czujniki IR (przód/tył) do wykrywania przeszkód
+- Niezależny task bezpieczeństwa z najwyższym priorytetem
+- Automatyczne zatrzymywanie silników przy wykryciu przeszkody
 
-### Komunikacja
+### Automatyczne podlewanie
+- Monitorowanie wilgotności gleby
+- Automatyczna jazda do stacji dokującej (FloraDock) przy niskiej wilgotności
+- Komunikacja BLE ze stacją dokującą
+- Weryfikacja obecności robota (czujnik Hall) przed podlewaniem
 
-- **WiFi** - połączenie z siecią lokalną
-- **Bluetooth Low Energy (BLE)** - komunikacja bezprzewodowa (klient i serwer)
-- **MQTT** - publikacja danych do brokerów MQTT
-- **HTTP Client** - komunikacja z serwerami HTTP
+### Komunikacja MQTT
+- Publikacja danych z czujników co konfigurowalne interwały
+- Zdalne sterowanie silnikami (przód/tył/lewo/prawo)
+- Konfiguracja alarmów (temperatura, wilgotność gleby, bateria)
+- Zdalne wywoływanie podlewania i wyszukiwania światła
 
-### Kontrola
+## Czujniki
 
-- **Kontroler silników** - sterowanie urządzeniami wykonawczymi
+| Czujnik | Model | Interfejs | Opis |
+|---------|-------|-----------|------|
+| Światło (x2) | VEML7700 | I2C | Pomiar natężenia światła (lux) |
+| Wilgotność gleby | Pojemnościowy | ADC | Pomiar wilgotności podłoża |
+| Temperatura/Wilgotność | BME280 | I2C | Warunki atmosferyczne |
+| Przeszkody (x2) | IR Obstacle | GPIO | Wykrywanie przeszkód (przód/tył) |
+| Hall | Cyfrowy | GPIO | Wykrywanie pola magnetycznego |
+| Dock | Cyfrowy | GPIO | Wykrywanie stacji dokującej |
 
 ## Struktura projektu
 
 ```
 flora-sense/
 ├── main/
-│   ├── flora-sense.c          # Główny plik aplikacji
-│   ├── config.h               # Konfiguracja GPIO, I2C, ADC
-│   ├── wifi.c/h               # Obsługa WiFi
-│   ├── mqtt_client.c          # Klient MQTT
-│   ├── http_client.c/h        # Klient HTTP
-│   ├── ble_client.c/h         # BLE klient
-│   ├── ble_server.c/h         # BLE serwer
-│   ├── motor_controller.c/h   # Kontroler silników
-│   ├── bmp280.c/h             # Obsługa czujnika BMP280
-│   ├── mpu6050.c/h            # Obsługa czujnika MPU6050
-│   └── sensors/               # Moduły czujników
-│       ├── sensor_soil.c/h    # Czujnik gleby
-│       ├── sensor_temp.c/h    # Czujnik temperatury/wilgotności
-│       ├── sensor_light.c/h   # Czujnik światła
-│       ├── sensor_proximity.c/h
-│       ├── sensor_hall.c/h
-│       ├── sensor_ir.c/h
-│       ├── sensor_dock.c/h
-│       └── hardware_test.c/h
+│   ├── flora-sense.c           # Główna aplikacja, inicjalizacja tasków
+│   ├── config.h                # Konfiguracja GPIO, I2C, ADC, PWM
+│   │
+│   ├── # Komunikacja
+│   ├── wifi.c/h                # Obsługa WiFi (STA mode)
+│   ├── mqtt_client.c           # Klient MQTT, publikacja/subskrypcja
+│   ├── flora_mqtt.h            # Definicje MQTT (topiki, konfiguracja)
+│   ├── ble_dock_client.c/h     # Klient BLE do komunikacji z FloraDock
+│   │
+│   ├── # Kontrolery
+│   ├── motor_controller.c/h    # Sterownik silników (TB6612FNG)
+│   ├── wsn_controller.c/h      # Kontroler fototropii (podążanie za światłem)
+│   ├── water_controller.c/h    # Kontroler automatycznego podlewania
+│   │
+│   ├── # Czujniki
+│   ├── bmp280.c/h              # Driver czujnika BMP280
+│   ├── mpu6050/                # Driver akcelerometru MPU6050
+│   └── sensors/
+│       ├── sensor_soil.c/h     # Czujnik wilgotności gleby
+│       ├── sensor_light.c/h    # Czujnik światła VEML7700
+│       ├── sensor_temp.c/h     # Czujnik temperatury BME280
+│       ├── sensor_ir.c/h       # Czujniki IR (przeszkody)
+│       ├── sensor_hall.c/h     # Czujnik Hall
+│       └── sensor_dock.c/h     # Czujnik stacji dokującej
+│
+├── docs/
+│   ├── MQTT_API.md             # Dokumentacja API MQTT
+│   └── mpu6050_DOCS.md         # Dokumentacja MPU6050
+│
 ├── CMakeLists.txt
-└── sdkconfig                  # Konfiguracja ESP-IDF
+└── sdkconfig
 ```
+
+## Konfiguracja sprzętowa
+
+### Pinout ESP32
+
+#### Silniki (TB6612FNG)
+| Funkcja | GPIO | Opis |
+|---------|------|------|
+| MOTOR_A_PWM | 13 | PWM silnika A |
+| MOTOR_A_IN1 | 27 | Kierunek A |
+| MOTOR_A_IN2 | 14 | Kierunek A |
+| MOTOR_B_PWM | 4 | PWM silnika B |
+| MOTOR_B_IN1 | 16 | Kierunek B |
+| MOTOR_B_IN2 | 17 | Kierunek B |
+
+#### I2C
+| Funkcja | GPIO | Opis |
+|---------|------|------|
+| I2C_0 SDA | 21 | Czujnik światła 1, BME280 |
+| I2C_0 SCL | 22 | Czujnik światła 1, BME280 |
+| I2C_1 SDA | 32 | Czujnik światła 2 |
+| I2C_1 SCL | 33 | Czujnik światła 2 |
+
+#### ADC
+| Funkcja | GPIO | Kanał |
+|---------|------|-------|
+| Czujnik gleby | 34 | ADC1_CH6 |
+| Bateria | 35 | ADC1_CH7 |
 
 ## Wymagania
 
-- **ESP-IDF** (Espressif IoT Development Framework) v5.0 lub nowszy
-- **Mikrokontroler ESP32**
-- **Komponenty sprzętowe**:
-  - Czujniki zgodne z wymienionymi powyżej
-  - Moduł WiFi/Bluetooth (wbudowany w ESP32)
+- **ESP-IDF** v5.0 lub nowszy
+- **Mikrokontroler ESP32** (z WiFi i BLE)
+- **Sterownik silników** TB6612FNG lub kompatybilny
+- **Stacja dokująca** FloraDock (osobny projekt)
 
 ## Konfiguracja
 
-### 1. Konfiguracja WiFi
-
-Edytuj plik `main/config.h` i ustaw parametry sieci:
-
+### 1. WiFi
+Edytuj `main/config.h`:
 ```c
-#define EXAMPLE_ESP_WIFI_SSID      "Twoja_Sieć_WiFi"
+#define EXAMPLE_ESP_WIFI_SSID      "Twoja_Sieć"
 #define EXAMPLE_ESP_WIFI_PASS      "Twoje_Hasło"
 ```
 
-### 2. Konfiguracja MQTT
-
-W pliku `main/mqtt_client.c` ustaw adres brokera MQTT:
-
+### 2. MQTT Broker
+Edytuj `main/mqtt_client.c`:
 ```c
 #define MQTT_BROKER_URI "mqtt://adres_brokera:1883"
-#define USER_ID     "twoj_user_id"
-#define DEVICE_ID   "twoj_device_id"
 ```
 
-### 3. Konfiguracja czujników
-
-Parametry GPIO i I2C można skonfigurować w pliku `main/config.h`:
-
-- Piny I2C (domyślnie GPIO21 - SDA, GPIO22 - SCL)
-- Kanały ADC dla czujników analogowych
-- Adresy I2C czujników
+### 3. Kalibracja silników
+W pliku `main/config.h` ustaw ile cm robot przejeżdża w 1 sekundę:
+```c
+#define MOTOR_CM_PER_SECOND_128  24.0f
+```
 
 ## Kompilacja i flashowanie
 
-1. **Przygotowanie środowiska**:
+```bash
+# Przygotowanie środowiska
+. $HOME/esp/esp-idf/export.sh
 
-   ```bash
-   . $HOME/esp/esp-idf/export.sh
-   ```
+# Konfiguracja (opcjonalne)
+idf.py menuconfig
 
-2. **Konfiguracja projektu**:
+# Kompilacja
+idf.py build
 
-   ```bash
-   idf.py menuconfig
-   ```
-
-3. **Kompilacja**:
-
-   ```bash
-   idf.py build
-   ```
-
-4. **Flashowanie**:
-   ```bash
-   idf.py -p /dev/ttyUSB0 flash monitor
-   ```
-   (Zastąp `/dev/ttyUSB0` odpowiednim portem szeregowym)
-
-## Użycie
-
-Po uruchomieniu urządzenie:
-
-1. Inicjalizuje wszystkie skonfigurowane czujniki
-2. Rozpoczyna odczyty z czujników w określonych interwałach
-3. Publikuje dane przez MQTT (jeśli włączone)
-4. Umożliwia komunikację przez BLE (jeśli włączone)
-
-Dane z czujników są logowane do konsoli szeregowej oraz mogą być wysyłane przez MQTT do tematu:
-
+# Flashowanie i monitor
+idf.py -p /dev/ttyUSB0 flash monitor
 ```
-florasense/{USER_ID}/{DEVICE_ID}/{nazwa_czujnika}
-```
+
+## Działanie systemu
+
+### Sekwencja startowa
+1. Inicjalizacja NVS
+2. Połączenie WiFi
+3. Start klienta MQTT
+4. Inicjalizacja czujników i silników
+5. Start kontrolera WSN (fototropia)
+6. Start kontrolera podlewania
+7. Połączenie BLE z FloraDock
+
+### Taski FreeRTOS
+| Task | Priorytet | Opis |
+|------|-----------|------|
+| obstacle_monitor | 10 | Monitorowanie przeszkód (najwyższy) |
+| mqtt_pub_task | 7 | Publikacja danych MQTT |
+| wsn_controller | 5 | Kontroler fototropii |
+| light_search | 5 | Obsługa żądań wyszukiwania światła |
+| water_controller | 4 | Automatyczne podlewanie |
 
 ## Dokumentacja
 
-Szczegółowa dokumentacja dostępna w katalogu `docs/`:
+- **[MQTT API](docs/MQTT_API.md)** - Pełna dokumentacja API MQTT (tematy, komendy, konfiguracja)
+- **[BLE API](docs/BLE_API.md)** - Komunikacja BLE z FloraDock
+- **[Hardware](docs/HARDWARE.md)** - Schemat połączeń i lista komponentów
 
-- **[MQTT API](docs/MQTT_API.md)** - Dokumentacja protokołu MQTT, tematów i komend
-- **[MPU6050 Docs](docs/mpu6050_DOCS.md)** - Dokumentacja czujnika MPU6050
+## Powiązane projekty
 
-## Status projektu
-
-Projekt jest w fazie rozwoju. Niektóre funkcjonalności mogą być wykomentowane w kodzie głównym (`flora-sense.c`) i wymagają aktywacji poprzez odkomentowanie odpowiednich linii.
+- **[FloraDock](../flora-sense-kopia/)** - Stacja dokująca do podlewania
 
 ## Licencja
 
