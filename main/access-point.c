@@ -22,6 +22,7 @@
 #include "mbedtls/rsa.h"
 #include "mbedtls/pk.h"
 #include "mbedtls/x509_csr.h"
+#include "esp_mac.h"
 
 #define TAG "CUSTOM_CONFIG"
 #define GPIO_RESET_BUTTON 0 
@@ -379,8 +380,12 @@ void start_wifi_ap() {
     esp_netif_create_default_wifi_ap();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    char pass[11];
-    generate_password_from_noise(pass,10);
+    
+    uint8_t mac[6];
+    esp_read_mac(mac,ESP_MAC_WIFI_SOFTAP);
+    char ap_password[16];
+    snprintf(ap_password, sizeof(ap_password), "ESP32_%02X%02X%02X",mac[3],mac[4],mac[5]);
+
     wifi_config_t wifi_config = {
         .ap = {
             .ssid = CONFIG_AP_SSID,
@@ -389,15 +394,20 @@ void start_wifi_ap() {
             .authmode = WIFI_AUTH_WPA_WPA2_PSK
         },
     };
-    strlcpy((char*)wifi_config.ap.password, pass, sizeof(wifi_config.ap.password));
-    if (strlen(pass) == 0) wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+    strlcpy((char*)wifi_config.ap.password, ap_password, sizeof(wifi_config.ap.password));
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_LOGI(TAG, "WiFi AP uruchomione. SSID: %s, IP: 192.168.4.1 HASŁO: %s", CONFIG_AP_SSID,pass);
-}
 
+    char qr_payload[128];
+    snprintf(qr_payload,sizeof(qr_payload),"WIFI:S:%s;T:WPA;P:%s;;",CONFIG_AP_SSID,ap_password);
+    ESP_LOGI(TAG, "================================================");
+    ESP_LOGI(TAG, "https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=WIFI:S:%s%%3BT:WPA%%3BP:%s%%3B%%3B", 
+             CONFIG_AP_SSID, ap_password);
+    ESP_LOGI(TAG, "================================================");
+
+}
 void start_wifi_sta() {
     esp_netif_create_default_wifi_sta();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -416,36 +426,12 @@ void start_wifi_sta() {
 }
 
 void app_main(void) {
-    const esp_partition_t *key_part = esp_partition_find_first(
-            ESP_PARTITION_TYPE_DATA, 
-            ESP_PARTITION_SUBTYPE_DATA_NVS_KEYS, 
-            "nvs_key");
 
-    if (key_part == NULL) {
-        ESP_LOGE(TAG, "BŁĄD: Nie znaleziono partycji 'nvs_key' w tablicy partycji! Sprawdź partitions.csv");
-        return;
-    }
-
-    nvs_sec_cfg_t cfg;
-    esp_err_t err = nvs_flash_read_security_cfg(key_part, &cfg);
-    
-    if (err == ESP_ERR_NVS_NOT_INITIALIZED || err == ESP_ERR_NVS_KEYS_NOT_INITIALIZED) {
-        ESP_LOGI(TAG, "Klucze NVS nie istnieją. Generowanie nowych...");
-        err = nvs_flash_generate_keys(key_part, &cfg);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Błąd generowania kluczy NVS: %s", esp_err_to_name(err));
-            return;
-        }
-    } else if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Błąd odczytu kluczy NVS: %s", esp_err_to_name(err));
-        return;
-    }
-
-    err = nvs_flash_secure_init(&cfg);
+    esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_LOGW(TAG, "NVS uszkodzony/niekompatybilny. Czyszczenie...");
         ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_secure_init(&cfg);
+        err = nvs_flash_init();
     }
     ESP_ERROR_CHECK(err);
 
