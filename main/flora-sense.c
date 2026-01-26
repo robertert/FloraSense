@@ -277,6 +277,9 @@ void app_main(void)
     // Poczekaj chwilę na inicjalizację WiFi przed uruchomieniem MQTT
     //vTaskDelay(pdMS_TO_TICKS(2000));
 
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
     wifi_manager_init();
     while (!wifi_is_connected()) 
     {

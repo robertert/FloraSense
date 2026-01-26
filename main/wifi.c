@@ -358,9 +358,15 @@ int tries = 0;
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                int32_t event_id, void* event_data) {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
+        if (!wifi_is_ap_mode()) {
+            ESP_LOGI(TAG, "Łączenie z routerem...");
+            esp_wifi_connect();
+        } else {
+            ESP_LOGI(TAG, "Tryb AP aktywny - pomijam automatyczne łączenie STA.");
+        }
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         ESP_LOGI(TAG, "Rozlaczono z WiFi, ponawiam...");
+        xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
         if(tries<5){
             esp_wifi_connect();
             tries++;
@@ -371,6 +377,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
         ESP_LOGI(TAG, "Polaczono! IP: " IPSTR, IP2STR(&event->ip_info.ip));
         ESP_LOGI(TAG, "Custom Param z NVS: %s", current_config.custom_param);
     }
