@@ -120,15 +120,19 @@ bool load_config_from_nvs(app_config_t *cfg) {
     return false;
 }
 
-void clear_nvs_config() 
+void clear_nvs_config()
 {
     nvs_handle_t my_handle;
-    if (nvs_open("storage", NVS_READWRITE, &my_handle) == ESP_OK) 
+    if (nvs_open("storage", NVS_READWRITE, &my_handle) == ESP_OK)
     {
-        nvs_erase_all(my_handle);
+        // Czyść tylko konfigurację WiFi, zachowaj pozostałe ustawienia
+        nvs_erase_key(my_handle, "ssid");
+        nvs_erase_key(my_handle, "pass");
+        nvs_erase_key(my_handle, "custom");
+        nvs_erase_key(my_handle, "configured");
         nvs_commit(my_handle);
         nvs_close(my_handle);
-        ESP_LOGW(TAG, "NVS wyczyszczony.");
+        ESP_LOGW(TAG, "Konfiguracja WiFi wyczyszczona.");
     }
 }
 

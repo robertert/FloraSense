@@ -153,26 +153,26 @@ static void reset_button_monitor_task(void *pvParamtetrs)
     gpio_set_direction(GPIO_NUM_0,GPIO_MODE_INPUT);
     gpio_set_pull_mode(GPIO_NUM_0, GPIO_PULLUP_ONLY);
 
-    ESP_LOGI("RESET_MONITOR", "Monitor przycisku resetu uruchomiony.");
+    ESP_LOGI("RESET_MONITOR", "Monitor przycisku uruchomiony (5s = tryb AP).");
     while(1)
     {
         if(gpio_get_level(GPIO_NUM_0) == 0)
         {
             hold_time_ms += check_interval_ms;
-            if(hold_time_ms % 1000 == 0) ESP_LOGW("RESET_MONITOR","PRZYCISK PRZYTRZYMANY");
+            if(hold_time_ms % 1000 == 0) ESP_LOGW("RESET_MONITOR","PRZYCISK PRZYTRZYMANY %d s", hold_time_ms / 1000);
             if(hold_time_ms >= target_hold_time_ms)
             {
-                ESP_LOGE("RESET_MONITOR", "RESTART URZĄDZENIA!");
-                //clear_nvs_config();
+                ESP_LOGE("RESET_MONITOR", "WCHODZĘ W TRYB AP - czyszczenie konfiguracji...");
+                clear_nvs_config();
                 vTaskDelay(pdMS_TO_TICKS(500));
                 esp_restart();
             }
-            
+
         }
         else hold_time_ms = 0;
         vTaskDelay(pdMS_TO_TICKS(check_interval_ms));
     }
-    
+
 }
 
 // Task monitorujący czujniki Hall i dock oraz sterujący LED

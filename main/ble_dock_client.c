@@ -675,7 +675,38 @@ esp_err_t ble_dock_run_watering_cycle(uint32_t pump_pulse_ms)
         esp_err_t err = ble_dock_send_watering_ms(actual_pulse_ms);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Nie udalo sie wyslac komendy WATER: %s", esp_err_to_name(err));
-            return err;
+            uint8_t hall = 0xFF;
+            ble_dock_read_hall(&hall);
+            ESP_LOGI(TAG, "Aktualny stan HALL z doku: %u (0=doniczka obecna, 1=brak)", hall);
+
+            // Sprawdz czy doniczka nie jest na doku (hall == 1 oznacza brak doniczki)
+            if (hall == 1 && motor_controller_is_initialized()) {
+                // doniczka nie jest na doku - sprobuj przestawic wozek
+                if (repositions >= max_repositions) {
+                    ESP_LOGW(TAG, "Osiagnieto maksymalna liczbe prob przestawienia wozka");
+                    break;
+                }
+
+                ESP_LOGW(TAG, "Hall == 1 (brak doniczki) - dojazd do przodu o 10cm i cofniecie do sciany");
+
+                // 10 cm do przodu
+                esp_err_t mret = motor_controller_move_distance("forward", 10.0f, 128);
+                if (mret != ESP_OK) {
+                    ESP_LOGE(TAG, "Blad ruchu w przod: %s", esp_err_to_name(mret));
+                    break;
+                }
+                vTaskDelay(pdMS_TO_TICKS(1000));
+
+                // Jedz do tylu az do sciany (uzywajac logiki z water_controller)
+                esp_err_t wall_res = water_controller_move_to_wall();
+                if (wall_res != ESP_OK) {
+                    ESP_LOGE(TAG, "Blad podczas jazdy do sciany: %s", esp_err_to_name(wall_res));
+                    break;
+                }
+
+                repositions++;
+                ESP_LOGI(TAG, "Wykonano przestawienie wozka (%d/%d)", repositions, max_repositions);
+            }
         }
         pulses_sent++;
         ESP_LOGI(TAG, "Impuls WATER %d/%d: %lu ms", pulses_sent, max_pulses, (unsigned long)actual_pulse_ms);
