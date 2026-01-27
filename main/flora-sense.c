@@ -42,11 +42,27 @@ void nvs_init(void)
     ESP_ERROR_CHECK(ret);
 }
 
-// static void wifi_init_task(void *param)
-// {
-//     wifi_init();
-//     vTaskDelete(NULL);
-// }
+static void wifi_init_task(void *pvParameters)
+{
+    wifi_manager_init();
+
+    while(1)
+    {
+        if(wifi_is_connected())
+        {
+            ESP_LOGI("WIFI_TASK","Połączono z siecią!");
+            break;
+        }
+        if(wifi_is_ap_mode())
+        {
+            ESP_LOGW("WIFI_TASK","Urządzenie w trybie AP. Czekam na konfigurację...");
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    vTaskDelete(NULL);
+}
 
 static void soil_sensor_task(void *param)
 {
@@ -313,16 +329,7 @@ void app_main(void)
 
     xTaskCreate(reset_button_monitor_task,"reset_btn_task",2048,NULL,10,NULL);
 
-    wifi_manager_init();
-    while (!wifi_is_connected()) 
-    {
-        if (wifi_is_ap_mode()) 
-        {
-            ESP_LOGW("MAIN", "Urządzenie w trybie AP. Czekam na konfigurację przez kod QR...");
-            break; 
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
+    xTaskCreate(wifi_init_task,"wifi_init_task",4096,NULL,1,NULL);
     
     // Inicjalizacja i start MQTT
     mqtt_app_start();
