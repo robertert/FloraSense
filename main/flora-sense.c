@@ -276,19 +276,18 @@ void app_main(void)
     
     // Poczekaj chwilę na inicjalizację WiFi przed uruchomieniem MQTT
     //vTaskDelay(pdMS_TO_TICKS(2000));
-
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     wifi_manager_init();
     while (!wifi_is_connected()) 
     {
-        if (wifi_is_ap_mode()) {
+        if (wifi_is_ap_mode()) 
+        {
             ESP_LOGW("MAIN", "Urządzenie w trybie AP. Czekam na konfigurację przez kod QR...");
             break; 
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
-        //ESP_LOGI("MAIN", "Czekam na WiFi...");
     }
     
     // Inicjalizacja i start MQTT
