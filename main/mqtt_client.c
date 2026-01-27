@@ -175,7 +175,7 @@ uint32_t mqtt_get_light_check_interval_ms(void)
 }
 
 /* -------------------------------------------------------
-   NVS: zapis i odczyt USER_ID
+   NVS: zapis i odczyt USER_ID oraz flagi zmiany usera
 --------------------------------------------------------*/
 static void load_user_id_from_nvs()
 {
@@ -191,16 +191,28 @@ static void load_user_id_from_nvs()
     }
 }
 
-static void save_user_id_to_nvs(const char *new_id)
+// Publikuje aktualny user_id przy każdym starcie (po połączeniu MQTT)
+// Backend użyje tego do aktualizacji właściciela urządzenia
+static void publish_current_user(void)
 {
-    nvs_handle_t handle;
-    if (nvs_open("storage", NVS_READWRITE, &handle) == ESP_OK) {
-        nvs_set_str(handle, "user_id", new_id);
-        nvs_commit(handle);
-        nvs_close(handle);
+    if (!mqtt_connected || client == NULL) {
         char timestamp[64];
         get_timestamp_str(timestamp, sizeof(timestamp));
-        ESP_LOGI(TAG, "%s Saved USER_ID to NVS: %s", timestamp, new_id);
+        ESP_LOGW(TAG, "%s MQTT not connected, cannot publish current user", timestamp);
+        return;
+    }
+
+    char topic[128];
+    snprintf(topic, sizeof(topic), "florasense/%s/config/user", device_id);
+
+    char timestamp[64];
+    get_timestamp_str(timestamp, sizeof(timestamp));
+
+    int msg_id = esp_mqtt_client_publish(client, topic, user_id, 0, 1, 0);
+    if (msg_id < 0) {
+        ESP_LOGW(TAG, "%s Failed to publish current user to %s (msg_id=%d)", timestamp, topic, msg_id);
+    } else {
+        ESP_LOGI(TAG, "%s Published current user to %s | msg_id=%d | %s", timestamp, topic, msg_id, user_id);
     }
 }
 
@@ -425,7 +437,6 @@ static void subscribe_to_commands(void)
     char water_cmd[128];
     char move_cmd[128];
     char light_search_cmd[128];
-    char user_cfg[128];
     char alarm_cfg[128];
     char measurement_cfg[128];
     char device_cfg[128];
@@ -442,10 +453,6 @@ static void subscribe_to_commands(void)
              "florasense/%s/%s/cmd/light_search",
              user_id, device_id);
 
-    snprintf(user_cfg, sizeof(user_cfg),
-             "florasense/%s/config/user",
-             device_id);
-
     snprintf(alarm_cfg, sizeof(alarm_cfg),
              "florasense/%s/config/alarm",
              device_id);
@@ -461,15 +468,14 @@ static void subscribe_to_commands(void)
     esp_mqtt_client_subscribe(client, water_cmd, 1);
     esp_mqtt_client_subscribe(client, move_cmd, 1);
     esp_mqtt_client_subscribe(client, light_search_cmd, 1);
-    esp_mqtt_client_subscribe(client, user_cfg, 1);
     esp_mqtt_client_subscribe(client, alarm_cfg, 1);
     esp_mqtt_client_subscribe(client, measurement_cfg, 1);
     esp_mqtt_client_subscribe(client, device_cfg, 1);
 
     char timestamp[64];
     get_timestamp_str(timestamp, sizeof(timestamp));
-    ESP_LOGI(TAG, "%s Subscribed to: %s, %s, %s, %s, %s, %s, %s",
-             timestamp, water_cmd, move_cmd, light_search_cmd, user_cfg, alarm_cfg, measurement_cfg, device_cfg);
+    ESP_LOGI(TAG, "%s Subscribed to: %s, %s, %s, %s, %s, %s",
+             timestamp, water_cmd, move_cmd, light_search_cmd, alarm_cfg, measurement_cfg, device_cfg);
 }
 
 /* -------------------------------------------------------
@@ -493,6 +499,9 @@ static void mqtt_event_handler_cb(void *handler_args,
 
             /* --- SUBSKRYPCJA KOMEND --- */
             subscribe_to_commands();
+
+            /* --- WYŚLIJ AKTUALNY USER_ID DO BACKENDU (przy każdym starcie) --- */
+            publish_current_user();
         }
         break;
 
@@ -504,27 +513,8 @@ static void mqtt_event_handler_cb(void *handler_args,
                      timestamp, event->topic_len, event->topic,
                      event->data_len, event->data);
 
-            /* --- USTAWIANIE USER_ID PRZEZ MQTT --- */
-            if (strstr(event->topic, "/config/user"))
-            {
-                char new_user[32] = {0};
-                memcpy(new_user, event->data, event->data_len);
-
-                char timestamp[64];
-                get_timestamp_str(timestamp, sizeof(timestamp));
-                ESP_LOGI(TAG, "%s Received USER_ID config: %s", timestamp, new_user);
-
-                save_user_id_to_nvs(new_user);
-                strncpy(user_id, new_user, sizeof(user_id));
-                
-                /* --- RE-SUBSKRYPCJA TEMATÓW Z NOWYM USER_ID --- */
-                get_timestamp_str(timestamp, sizeof(timestamp));
-                ESP_LOGI(TAG, "%s Re-subscribing to commands with new USER_ID: %s", timestamp, user_id);
-                subscribe_to_commands();
-            }
-
             /* --- KONFIGURACJA ALARMÓW --- */
-            else if (strstr(event->topic, "/config/alarm"))
+            if (strstr(event->topic, "/config/alarm"))
             {
                 char timestamp[64];
                 get_timestamp_str(timestamp, sizeof(timestamp));

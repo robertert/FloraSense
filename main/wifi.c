@@ -12,7 +12,7 @@
 #include "driver/gpio.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
-#include "esp_https_server.h"
+#include "esp_http_server.h"
 #include "esp_random.h"
 #include <string.h>
 #include "esp_log.h"
@@ -27,6 +27,11 @@ static EventGroupHandle_t s_wifi_event_group;
 static bool is_ap_mode = false;
 app_config_t current_config;
 
+// Klucze NVS współdzielone z modułem MQTT
+#define NVS_NAMESPACE_STORAGE "storage"
+#define NVS_KEY_USER_ID       "user_id"
+#define NVS_KEY_USER_CHANGED  "user_changed"
+
 
 void get_device_mac_str(char *buf)
 {
@@ -36,6 +41,40 @@ void get_device_mac_str(char *buf)
 }
 
 bool wifi_is_ap_mode(void) {return is_ap_mode;}
+
+static void save_user_id_and_mark_changed(const char *user_id)
+{
+    if (user_id == NULL || user_id[0] == '\0') {
+        ESP_LOGW(TAG, "Pominięto zapis USER_ID - pusty string");
+        return;
+    }
+
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(NVS_NAMESPACE_STORAGE, NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Blad otwarcia NVS dla USER_ID: %s", esp_err_to_name(err));
+        return;
+    }
+
+    err = nvs_set_str(handle, NVS_KEY_USER_ID, user_id);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Blad zapisu USER_ID do NVS: %s", esp_err_to_name(err));
+        nvs_close(handle);
+        return;
+    }
+
+    // Oznacz, że USER_ID zostało zmienione w trakcie konfiguracji WiFi
+    err = nvs_set_u8(handle, NVS_KEY_USER_CHANGED, 1);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Blad ustawienia flagi USER_CHANGED w NVS: %s", esp_err_to_name(err));
+        nvs_close(handle);
+        return;
+    }
+
+    nvs_commit(handle);
+    nvs_close(handle);
+    ESP_LOGI(TAG, "USER_ID zapisane w NVS i oznaczone jako zmienione: %s", user_id);
+}
 
 void save_config_to_nvs(app_config_t *cfg) {
     nvs_handle_t my_handle;
@@ -166,6 +205,17 @@ esp_err_t save_post_handler(httpd_req_t *req)
     get_post_val(buf, "ssid", new_config.ssid, sizeof(new_config.ssid));
     get_post_val(buf, "pass", new_config.password, sizeof(new_config.password));
     get_post_val(buf, "custom", new_config.custom_param, sizeof(new_config.custom_param));
+
+    // Odczyt nazwy użytkownika z requestu konfiguracji WiFi.
+    // Obsługujemy zarówno "user", jak i "user_id" dla kompatybilności.
+    char new_user_id[32] = {0};
+    get_post_val(buf, "user", new_user_id, sizeof(new_user_id));
+    if (new_user_id[0] == '\0') {
+        get_post_val(buf, "user_id", new_user_id, sizeof(new_user_id));
+    }
+
+
+    save_user_id_and_mark_changed(new_user_id);
     save_config_to_nvs(&new_config);
     httpd_resp_send(req, "Ustawienia zapisane. Restartowanie...", HTTPD_RESP_USE_STRLEN);
 
@@ -175,31 +225,24 @@ esp_err_t save_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-void start_webserver_https() {
+void start_webserver_http() {
     httpd_handle_t server = NULL;
-    httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
-    config.httpd.stack_size = 16384;
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.stack_size = 8192;  // w razie potrzeby można zwiększyć
 
-    config.servercert = (const uint8_t *)server_cert_pem;
-    config.servercert_len = strlen(server_cert_pem) + 1;
-    config.prvtkey_pem = (const uint8_t *)server_key_pem;
-    config.prvtkey_len = strlen(server_key_pem) + 1;
-    
-    config.transport_mode = HTTPD_SSL_TRANSPORT_SECURE;
-
-    ESP_LOGI(TAG, "Startowanie serwera HTTPS...");
-    if (httpd_ssl_start(&server, &config) == ESP_OK) {
+    ESP_LOGI(TAG, "Startowanie serwera HTTP...");
+    if (httpd_start(&server, &config) == ESP_OK) {
         httpd_uri_t save_uri = {
             .uri = "/save",
             .method = HTTP_POST,
             .handler = save_post_handler,
             .user_ctx = NULL
         };
-        httpd_register_uri_handler(server,&save_uri);
-        
-        ESP_LOGI(TAG, "HTTPS Serwer dziala na porcie 443!");
+        httpd_register_uri_handler(server, &save_uri);
+
+        ESP_LOGI(TAG, "HTTP serwer dziala na porcie %d!", config.server_port);
     } else {
-        ESP_LOGE(TAG, "Blad startu HTTPS!");
+        ESP_LOGE(TAG, "Blad startu HTTP!");
     }
 }
 
@@ -303,9 +346,8 @@ void wifi_manager_init(void)
         if (force_ap) ESP_LOGW(TAG, "WYMUSZONO TRYB AP PRZYCISKIEM!");
         is_ap_mode = true;
         ESP_LOGW(TAG, "Tryb konfiguracji...");
-        ensure_certificates_exist();
         start_wifi_ap();
-        start_webserver_https();
+        start_webserver_http();
     }
     else 
     {

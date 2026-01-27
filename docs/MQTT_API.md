@@ -498,28 +498,29 @@ mosquitto_pub -h 172.20.10.2 -p 1883 \
 
 ### Zmiana USER_ID
 
-**Topic:** `florasense/{device_id}/config/user`
+**Źródło konfiguracji:** USER_ID jest teraz ustawiany podczas konfiguracji WiFi (tryb AP).
 
-**Format:** Prosty tekst (string)
+Frontend (np. aplikacja mobilna) wysyła w żądaniu HTTP do endpointu `/save`:
 
-**Opis:** Ustawia nowy USER_ID, który jest zapisywany w NVS i używany w tematach.
+- dane sieci WiFi (`ssid`, `pass`)
+- opcjonalny parametr użytkownika (`user` lub `user_id`)
 
-**Przykład:**
+Urządzenie:
+
+- zapisuje `USER_ID` w NVS
+- przy pierwszym połączeniu z MQTT po tej konfiguracji wysyła informację o przypisaniu użytkownika na topic:
+
+**Topic (device → backend):** `florasense/{device_id}/config/user`
+
+**Format:** Prosty tekst (string) – aktualny `USER_ID`
+
+**Przykład odbieranego komunikatu po konfiguracji WiFi:**
 
 ```bash
-mosquitto_pub -h 172.20.10.2 -p 1883 \
-  -t "florasense/8813BF6983D0/config/user" \
-  -m "nowy_user"
+florasense/8813BF6983D0/config/user moj_user
 ```
 
-Po ustawieniu, wszystkie tematy będą używać nowego `user_id`:
-
-```
-florasense/nowy_user/8813BF6983D0/sensor/temp
-florasense/nowy_user/8813BF6983D0/cmd/move
-```
-
-**Uwaga:** Nowy USER_ID jest zapisywany w NVS i będzie używany po restarcie ESP32.
+Backend na podstawie `device_id` i payloadu `USER_ID` rejestruje powiązanie urządzenie ↔ użytkownik.
 
 ---
 
