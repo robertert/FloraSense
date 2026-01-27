@@ -127,6 +127,38 @@ static void sensor_dock_task(void *param)
     }
 }
 
+static void reset_button_monitor_task(void *pvParamtetrs)
+{
+    const int target_hold_time_ms = 5000;
+    const int check_interval_ms = 100;
+    int hold_time_ms = 0;
+
+    gpio_reset_pin(GPIO_NUM_0);
+    gpio_set_direction(GPIO_NUM_0,GPIO_MODE_INPUT);
+    gpio_set_pull_mode(GPIO_NUM_0, GPIO_PULLUP_ONLY);
+
+    ESP_LOGI("RESET_MONITOR", "Monitor przycisku resetu uruchomiony.");
+    while(1)
+    {
+        if(gpio_get_level(GPIO_NUM_0) == 0)
+        {
+            hold_time_ms += check_interval_ms;
+            if(hold_time_ms % 1000 == 0) ESP_LOGW("RESET_MONITOR","PRZYCISK PRZYTRZYMANY");
+            if(hold_time_ms >= target_hold_time_ms)
+            {
+                ESP_LOGE("RESET_MONITOR", "RESTART URZĄDZENIA!");
+                //clear_nvs_config();
+                vTaskDelay(pdMS_TO_TICKS(500));
+                esp_restart();
+            }
+            
+        }
+        else hold_time_ms = 0;
+        vTaskDelay(pdMS_TO_TICKS(check_interval_ms));
+    }
+    
+}
+
 // Task monitorujący czujniki Hall i dock oraz sterujący LED
 static void sensor_trigger_led_task(void *param)
 {
@@ -278,6 +310,8 @@ void app_main(void)
     //vTaskDelay(pdMS_TO_TICKS(2000));
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    xTaskCreate(reset_button_monitor_task,"reset_btn_task",2048,NULL,10,NULL);
 
     wifi_manager_init();
     while (!wifi_is_connected()) 

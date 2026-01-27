@@ -10,11 +10,14 @@
 #include "mbedtls/rsa.h"
 #include "mbedtls/pk.h"
 #include "mbedtls/x509_csr.h"
+#include "esp_task_wdt.h"
 
 static const char *TAG = "CERTS_MGR";
 
 char *server_cert_pem = NULL;
 char *server_key_pem = NULL;
+
+
 
 
 esp_err_t save_str_to_nvs(const char *key, const char *value) {
