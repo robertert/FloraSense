@@ -249,19 +249,6 @@ void clear_nvs_config() {
         ESP_LOGW(TAG, "NVS wyczyszczony.");
     }
 }
-esp_err_t root_get_handler(httpd_req_t *req) {
-    const char* html_response = 
-        "<!DOCTYPE html><html><body style=\"display: flex; flex-direction: column; justify-content: center; align-items: center;\">"
-        "<h2>KONFIGURACJA SIECI WIFI</h2>"
-        "<form action=\"/save\" method=\"post\">"
-        "SSID:<br><input type=\"text\" name=\"ssid\"><br>"
-        "Haslo:<br><input type=\"password\" name=\"pass\"><br>"
-        "Dodatkowe parametry:<br><input type=\"text\" name=\"custom\"><br>"
-        "<input type=\"submit\" value=\"Zapisz\">"
-        "</form></body></html>";
-    httpd_resp_send(req, html_response, HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
-}
 
 void url_decode(char *dst, const char *src) {
     char a, b;
@@ -342,11 +329,13 @@ void start_webserver_https() {
 
     ESP_LOGI(TAG, "Startowanie serwera HTTPS...");
     if (httpd_ssl_start(&server, &config) == ESP_OK) {
-        httpd_uri_t root_uri = { .uri = "/", .method = HTTP_GET, .handler = root_get_handler };
-        httpd_register_uri_handler(server, &root_uri);
-
-        httpd_uri_t save_uri = { .uri = "/save", .method = HTTP_POST, .handler = save_post_handler };
-        httpd_register_uri_handler(server, &save_uri);
+        httpd_uri_t save_uri = {
+            .uri = "/save",
+            .method = HTTP_POST,
+            .handler = save_post_handler,
+            .user_ctx = NULL
+        };
+        httpd_register_uri_handler(server,&save_uri);
         
         ESP_LOGI(TAG, "HTTPS Serwer dziala na porcie 443!");
     } else {
@@ -398,7 +387,7 @@ void start_wifi_ap() {
             .ssid = CONFIG_AP_SSID,
             .ssid_len = strlen(CONFIG_AP_SSID),
             .max_connection = 4,
-            .authmode = WIFI_AUTH_WPA_WPA2_PSK
+            .authmode = WIFI_AUTH_OPEN
         },
     };
     strlcpy((char*)wifi_config.ap.password, ap_password, sizeof(wifi_config.ap.password));
@@ -437,11 +426,24 @@ void wifi_manager_init(void)
     s_wifi_event_group = xEventGroupCreate();
 
     gpio_set_direction(GPIO_NUM_0, GPIO_MODE_INPUT);
-    bool force_ap = (gpio_get_level(GPIO_NUM_0) == 0);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    bool force_ap = false;
+    
+    
+    for(int i = 0; i < 5; i++) {
+        ESP_LOGI(TAG, "Sprawdzam przycisk force_ap...");
+        if (gpio_get_level(GPIO_NUM_0) == 0) {
+            force_ap = true;
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
     bool has_config = load_config_from_nvs(&current_config);
 
     if (force_ap || !has_config)
     {
+        if (force_ap) ESP_LOGW(TAG, "WYMUSZONO TRYB AP PRZYCISKIEM!");
         is_ap_mode = true;
         ESP_LOGW(TAG, "Tryb konfiguracji...");
         ensure_certificates_exist();

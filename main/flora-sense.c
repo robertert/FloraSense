@@ -288,7 +288,7 @@ void app_main(void)
             break; 
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
-        ESP_LOGI("MAIN", "Czekam na WiFi...");
+        //ESP_LOGI("MAIN", "Czekam na WiFi...");
     }
     
     // Inicjalizacja i start MQTT
