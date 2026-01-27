@@ -29,41 +29,28 @@ static const char *TAG = "WIFI_MGR";
 #define GPIO_RESET_BUTTON 0 
 #define CONFIG_AP_SSID "ESP32_SETUP"
 static EventGroupHandle_t s_wifi_event_group;
-
 char *server_cert_pem = NULL;
 char *server_key_pem = NULL;
 static bool is_ap_mode = false;
 app_config_t current_config;
 
-void generate_password_from_noise(char *buffer, size_t len) {
-    const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    size_t charset_len = strlen(charset);
-    uint8_t *random_bytes = malloc(len);
-    if (random_bytes == NULL) {
-        ESP_LOGE(TAG, "Błąd alokacji pamięci");
-        return;
-    }
-    esp_fill_random(random_bytes, len);
-    for (size_t i = 0; i < len; i++) {
-        buffer[i] = charset[random_bytes[i] % charset_len];
-    }
-    buffer[len] = '\0';
 
-    free(random_bytes);
+void get_device_mac_str(char *buf)
+{
+    uint8_t mac[6];
+    esp_read_mac(mac,ESP_MAC_WIFI_STA);
+    sprintf(buf, "%02X%02X%02X%02X%02X%02X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 }
 
 esp_err_t save_str_to_nvs(const char *key, const char *value) {
-    if (key == NULL || value == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
+    if (key == NULL || value == NULL) return ESP_ERR_INVALID_ARG;
 
     nvs_handle_t handle;
     esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
-    if (err == ESP_OK) {
+    if (err == ESP_OK) 
+    {
         err = nvs_set_str(handle, key, value);
-        if (err == ESP_OK) {
-            err = nvs_commit(handle);
-        }
+        if (err == ESP_OK) err = nvs_commit(handle);
         nvs_close(handle);
     }
     return err;
@@ -171,9 +158,8 @@ void generate_certificates() {
 
 
 void ensure_certificates_exist() {
-    if (load_str_from_nvs("srv_cert", &server_cert_pem) != ESP_OK || 
-        load_str_from_nvs("srv_key", &server_key_pem) != ESP_OK) {
-        
+    if (load_str_from_nvs("srv_cert", &server_cert_pem) != ESP_OK || load_str_from_nvs("srv_key", &server_key_pem) != ESP_OK) 
+    {
         ESP_LOGW(TAG, "Brak kluczy. Generuje nowe...");
         if (server_cert_pem) free(server_cert_pem);
         if (server_key_pem) free(server_key_pem);
@@ -183,12 +169,8 @@ void ensure_certificates_exist() {
         load_str_from_nvs("srv_key", &server_key_pem);
     }
     
-    if (server_cert_pem && server_key_pem) {
-        ESP_LOGI(TAG, "Certyfikaty gotowe.");
-
-    } else {
-        ESP_LOGE(TAG, "KRYTYCZNY BLAD: Nie udalo sie zaladowac certyfikatow po wygenerowaniu!");
-    }
+    if (server_cert_pem && server_key_pem) ESP_LOGI(TAG, "Certyfikaty gotowe.");
+    else ESP_LOGE(TAG, "KRYTYCZNY BLAD: Nie udalo sie zaladowac certyfikatow po wygenerowaniu!");
 
 }
 
@@ -209,9 +191,7 @@ void save_config_to_nvs(app_config_t *cfg) {
     }
 }
 
-bool wifi_is_ap_mode(void) {
-    return is_ap_mode;
-}
+bool wifi_is_ap_mode(void) {return is_ap_mode;}
 
 bool load_config_from_nvs(app_config_t *cfg) {
     nvs_handle_t my_handle;
@@ -221,7 +201,8 @@ bool load_config_from_nvs(app_config_t *cfg) {
     uint8_t configured = 0;
     nvs_get_u8(my_handle, "configured", &configured);
     
-    if (configured == 1) {
+    if (configured == 1) 
+    {
         size_t required_size = sizeof(cfg->ssid);
         nvs_get_str(my_handle, "ssid", cfg->ssid, &required_size);
         
@@ -229,9 +210,8 @@ bool load_config_from_nvs(app_config_t *cfg) {
         nvs_get_str(my_handle, "pass", cfg->password, &required_size);
 
         required_size = sizeof(cfg->custom_param);
-        if(nvs_get_str(my_handle, "custom", cfg->custom_param, &required_size) != ESP_OK) {
+        if(nvs_get_str(my_handle, "custom", cfg->custom_param, &required_size) != ESP_OK)
             strcpy(cfg->custom_param, "");
-        }
 
         nvs_close(my_handle);
         return true;
@@ -240,9 +220,11 @@ bool load_config_from_nvs(app_config_t *cfg) {
     return false;
 }
 
-void clear_nvs_config() {
+void clear_nvs_config() 
+{
     nvs_handle_t my_handle;
-    if (nvs_open("storage", NVS_READWRITE, &my_handle) == ESP_OK) {
+    if (nvs_open("storage", NVS_READWRITE, &my_handle) == ESP_OK) 
+    {
         nvs_erase_all(my_handle);
         nvs_commit(my_handle);
         nvs_close(my_handle);
@@ -252,20 +234,19 @@ void clear_nvs_config() {
 
 void url_decode(char *dst, const char *src) {
     char a, b;
-    while (*src) {
-        if ((*src == '%') && ((a = src[1]) && (b = src[2])) && (isxdigit(a) && isxdigit(b))) {
+    while (*src) 
+    {
+        if ((*src == '%') && ((a = src[1]) && (b = src[2])) && (isxdigit(a) && isxdigit(b))) 
+        {
             if (a >= 'a') a -= 'a'-'A';
             if (a >= 'A') a -= ('A' - 10); else a -= '0';
             if (b >= 'a') b -= 'a'-'A';
             if (b >= 'A') b -= ('A' - 10); else b -= '0';
             *dst++ = 16*a+b;
             src+=3;
-        } else if (*src == '+') {
-            *dst++ = ' ';
-            src++;
-        } else {
-            *dst++ = *src++;
-        }
+        } 
+        else if (*src == '+') {*dst++ = ' '; src++;} 
+        else *dst++ = *src++;
     }
     *dst = '\0';
 }
@@ -285,7 +266,26 @@ void get_post_val(char *buf, const char *key, char *out_val, int max_len) {
     }
 }
 
-esp_err_t save_post_handler(httpd_req_t *req) {
+esp_err_t save_post_handler(httpd_req_t *req) 
+{
+    char expected_token[13];
+    get_device_mac_str(expected_token);
+
+    char received_token[32];
+    if(httpd_req_get_hdr_value_str(req,"X-Auth-Token",received_token,sizeof(received_token)) != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Odrzucono: Brak nagłówka X-Auth-Token");
+        httpd_resp_send_err(req,HTTPD_401_UNAUTHORIZED,"Brak tokenu MAC");
+        return ESP_FAIL;
+    }
+
+    if(strcmp(received_token,expected_token) != 0)
+    {
+        ESP_LOGW(TAG,"Odrzucono: Niepoprawny token. Otrzymano: %s, Oczekiwano %s",received_token,expected_token);
+        httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Niepoprawny token MAC");
+        return ESP_FAIL;
+    }
+
     char buf[200];
     int ret, remaining = req->content_len;
 
@@ -305,7 +305,6 @@ esp_err_t save_post_handler(httpd_req_t *req) {
     get_post_val(buf, "ssid", new_config.ssid, sizeof(new_config.ssid));
     get_post_val(buf, "pass", new_config.password, sizeof(new_config.password));
     get_post_val(buf, "custom", new_config.custom_param, sizeof(new_config.custom_param));
-    //ESP_LOGI(TAG, "Otrzymano: SSID=%s, Pass=%s", new_config.ssid, new_config.password);
     save_config_to_nvs(&new_config);
     httpd_resp_send(req, "Ustawienia zapisane. Restartowanie...", HTTPD_RESP_USE_STRLEN);
 
@@ -344,27 +343,26 @@ void start_webserver_https() {
 }
 
 int tries = 0;
-static void wifi_event_handler(void* arg, esp_event_base_t event_base,
-                               int32_t event_id, void* event_data) {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        if (!wifi_is_ap_mode()) {
+static void wifi_event_handler(void* arg, esp_event_base_t event_base,int32_t event_id, void* event_data) 
+{
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) 
+    {
+        if (!wifi_is_ap_mode()) 
+        {
             ESP_LOGI(TAG, "Łączenie z routerem...");
             esp_wifi_connect();
-        } else {
-            ESP_LOGI(TAG, "Tryb AP aktywny - pomijam automatyczne łączenie STA.");
-        }
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        } 
+        else ESP_LOGI(TAG, "Tryb AP aktywny - pomijam automatyczne łączenie STA.");
+    } 
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) 
+    {
         ESP_LOGI(TAG, "Rozlaczono z WiFi, ponawiam...");
         xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-        if(tries<5){
-            esp_wifi_connect();
-            tries++;
-        }
-        else
-        {
-            ESP_LOGI(TAG, "Nie znaleziono sieci Wi-Fi o podanym SSID i haśle.");
-        }
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        if(tries<5){esp_wifi_connect(); tries++;}
+        else ESP_LOGI(TAG, "Nie znaleziono sieci Wi-Fi o podanym SSID i haśle.");
+    } 
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) 
+    {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
         ESP_LOGI(TAG, "Polaczono! IP: " IPSTR, IP2STR(&event->ip_info.ip));
@@ -395,14 +393,6 @@ void start_wifi_ap() {
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
-
-    char qr_payload[128];
-    snprintf(qr_payload,sizeof(qr_payload),"WIFI:S:%s;T:WPA;P:%s;;",CONFIG_AP_SSID,ap_password);
-    ESP_LOGI(TAG, "================================================");
-    ESP_LOGI(TAG, "SSID: %s",CONFIG_AP_SSID);
-    ESP_LOGI(TAG, "PAYLOAD: %s",qr_payload);
-    ESP_LOGI(TAG, "================================================");
-
 }
 void start_wifi_sta() {
     esp_netif_create_default_wifi_sta();
@@ -423,20 +413,26 @@ void start_wifi_sta() {
 
 void wifi_manager_init(void) 
 {
+
     s_wifi_event_group = xEventGroupCreate();
+
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    ESP_LOGI(TAG, "------------------------------------------");
+    ESP_LOGI(TAG, "TOKEN MAC (bez dwukropków): %02X%02X%02X%02X%02X%02X", 
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    ESP_LOGI(TAG, "------------------------------------------");
+
 
     gpio_set_direction(GPIO_NUM_0, GPIO_MODE_INPUT);
     vTaskDelay(pdMS_TO_TICKS(100));
-
     bool force_ap = false;
     
     
-    for(int i = 0; i < 5; i++) {
+    for(int i = 0; i < 5; i++) 
+    {
         ESP_LOGI(TAG, "Sprawdzam przycisk force_ap...");
-        if (gpio_get_level(GPIO_NUM_0) == 0) {
-            force_ap = true;
-            break;
-        }
+        if (gpio_get_level(GPIO_NUM_0) == 0) {force_ap = true; break;}
         vTaskDelay(pdMS_TO_TICKS(500));
     }
     bool has_config = load_config_from_nvs(&current_config);
